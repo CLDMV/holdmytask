@@ -1,0 +1,50 @@
+#
+# @Project: @cldmv/holdmytask
+# @Filename: /.npmignore
+# @Date: 2025-11-08 13:56:13 -08:00 (1762638973)
+# @Author: Nate Hyson <CLDMV>
+# @Email: <Shinrai@users.noreply.github.com>
+# -----
+# @Last modified by: Nate Hyson <CLDMV> (Shinrai@users.noreply.github.com)
+# @Last modified time: 2025-11-09 16:14:10 -08:00 (1762733650)
+# -----
+# @Copyright: Copyright (c) 2013-2025 Catalyzed Motivation Inc. All rights reserved.
+#
+
+
+# NPM ignore file for @cldmv/slothlet
+# Exclude development and backup files from published package
+
+# Backup files
+*.backup
+**/*.backup
+
+# Development files
+src/
+api_tests/
+tests/
+tmp-tests/
+tools/
+docs/
+.configs/
+
+# Build artifacts that shouldn't be in the package
+.github/
+.git/
+.vscode/
+*.log
+*.tgz
+
+# Documentation that's not needed in package
+CONTRIBUTING.md
+SECURITY.md
+TODO.md
+PERFORMANCE.md
+
+# Test and config files
+*.test.*
+*.spec.*
+.eslintrc.*
+.prettierrc.*
+tsconfig*.json
+*.config.*
