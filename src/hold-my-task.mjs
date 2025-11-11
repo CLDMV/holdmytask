@@ -6,7 +6,7 @@
  *	@Email: <Shinrai@users.noreply.github.com>
  *	-----
  *	@Last modified by: Nate Hyson <CLDMV> (Shinrai@users.noreply.github.com)
- *	@Last modified time: 2025-11-09 19:27:13 -08:00 (1762745233)
+ *	@Last modified time: 2025-11-10 22:14:06 -08:00 (1762841646)
  *	-----
  *	@Copyright: Copyright (c) 2013-2025 Catalyzed Motivation Inc. All rights reserved.
  */
@@ -30,12 +30,22 @@ export class HoldMyTask extends EventEmitter {
 	 * @param {number} [options.defaultPriority=0] - Default priority for tasks (higher numbers = higher priority)
 	 * @param {number} [options.maxQueue=Infinity] - Maximum number of tasks that can be queued
 	 * @param {Object} [options.delays={}] - Map of priority levels to delay times in milliseconds between task completions
+	 * @param {boolean} [options.smartScheduling=true] - Use dynamic timeouts instead of constant polling for better performance
+	 * @param {number} [options.tick=25] - Polling interval in milliseconds when smartScheduling is disabled
+	 * @param {number} [options.healingInterval=5000] - Self-healing check interval in milliseconds (smart scheduling only)
 	 * @example
 	 * const queue = new HoldMyTask({
 	 *   concurrency: 2,
 	 *   tick: 50,
 	 *   defaultPriority: 1,
 	 *   delays: { 0: 1000, 1: 500 }
+	 * });
+	 *
+	 * @example
+	 * // Use traditional polling instead of smart scheduling
+	 * const legacyQueue = new HoldMyTask({
+	 *   smartScheduling: false,
+	 *   tick: 50
 	 * });
 	 */
 	constructor(options = {}) {
@@ -47,6 +57,8 @@ export class HoldMyTask extends EventEmitter {
 			defaultPriority: 0,
 			maxQueue: Infinity,
 			delays: {}, // priority -> delay in ms between tasks of that priority
+			smartScheduling: true, // Use smart timeouts instead of polling by default
+			healingInterval: 5000, // Self-healing check interval (smart scheduling only)
 			...options
 		};
 
@@ -66,6 +78,14 @@ export class HoldMyTask extends EventEmitter {
 		this.destroyed = false;
 		this.lastCompletedPriority = null;
 		this.nextAvailableTime = 0; // For delays after task completion
+
+		// Smart scheduling state (used when smartScheduling is enabled)
+		this.schedulerTimeout = null;
+		this.healingInterval = null;
+		this.lastSchedulerRun = 0;
+
+		// Traditional polling state (used when smartScheduling is disabled)
+		this.intervalId = null;
 
 		if (this.options.autoStart) {
 			this.resume();
@@ -162,17 +182,20 @@ export class HoldMyTask extends EventEmitter {
 
 		// Check if signal is already aborted
 		if (finalOptions.signal?.aborted) {
-			this.cancelTask(id, "Aborted");
-		} else if (callback) {
-			// For callback API, the queue handles signal abortion
-			finalOptions.signal?.addEventListener("abort", () => {
-				this.cancelTask(id, "Aborted");
+			this.cancelTask(id, "Task was aborted");
+		} else if (finalOptions.signal) {
+			// For both callback and promise API, the queue handles signal abortion
+			finalOptions.signal.addEventListener("abort", () => {
+				this.cancelTask(id, "Task was aborted");
 			});
 		}
-		// For promise API, assume the task handles the signal itself
 
 		if (this.isActive) {
-			this.scheduleNextTick();
+			if (this.options.smartScheduling) {
+				this.scheduleSmartTimeout();
+			} else {
+				this.scheduleNextTick();
+			}
 		}
 
 		const tasks = this.tasks; // Capture reference
@@ -251,7 +274,11 @@ export class HoldMyTask extends EventEmitter {
 	 */
 	pause() {
 		this.isActive = false;
-		this.clearTimers();
+		if (this.options.smartScheduling) {
+			this.clearSchedulerTimers();
+		} else {
+			this.clearTimers();
+		}
 	}
 
 	/**
@@ -264,11 +291,25 @@ export class HoldMyTask extends EventEmitter {
 	resume() {
 		if (this.destroyed) return;
 		this.isActive = true;
-		// If there are pending tasks, run scheduler immediately
-		if (this.pendingHeap.size() > 0 || this.readyHeap.size() > 0) {
-			this.schedulerTick();
+
+		if (this.options.smartScheduling) {
+			// Start healing interval for smart scheduling
+			this.startHealingInterval();
+
+			// If there are pending tasks, run scheduler immediately
+			if (this.pendingHeap.size() > 0 || this.readyHeap.size() > 0) {
+				this.runScheduler();
+			} else {
+				this.scheduleSmartTimeout();
+			}
+		} else {
+			// Traditional polling mode
+			// If there are pending tasks, run scheduler immediately
+			if (this.pendingHeap.size() > 0 || this.readyHeap.size() > 0) {
+				this.schedulerTick();
+			}
+			this.scheduleNextTick();
 		}
-		this.scheduleNextTick();
 	}
 
 	/**
@@ -300,6 +341,15 @@ export class HoldMyTask extends EventEmitter {
 			return a.enqueueSeq - b.enqueueSeq;
 		});
 		this.tasks.clear();
+
+		// Reschedule since we may have no work
+		if (this.isActive) {
+			if (this.options.smartScheduling) {
+				this.scheduleSmartTimeout();
+			} else {
+				// For traditional polling, no need to reschedule as interval will continue
+			}
+		}
 	}
 
 	/**
@@ -483,7 +533,8 @@ export class HoldMyTask extends EventEmitter {
 		}
 
 		// Schedule next tick if there are pending tasks or tasks that might become available
-		if (this.pendingHeap.size() > 0 || this.readyHeap.size() > 0 || hasWaitingTasks) {
+		// Note: For smart scheduling, this is handled by runScheduler calling scheduleSmartTimeout
+		if (!this.options.smartScheduling && (this.pendingHeap.size() > 0 || this.readyHeap.size() > 0 || hasWaitingTasks)) {
 			this.scheduleNextTick();
 		}
 	}
@@ -645,8 +696,12 @@ export class HoldMyTask extends EventEmitter {
 				if (this.running.size === 0 && this.pendingHeap.size() === 0 && this.readyHeap.size() === 0) {
 					this.emit("drain");
 				} else if (this.isActive) {
-					// More tasks to run, run scheduler immediately
-					this.schedulerTick();
+					// More tasks to run, reschedule immediately
+					if (this.options.smartScheduling) {
+						this.scheduleSmartTimeout();
+					} else {
+						this.schedulerTick();
+					}
 				}
 			});
 		}
@@ -665,6 +720,141 @@ export class HoldMyTask extends EventEmitter {
 		if (this.timeoutId) {
 			clearTimeout(this.timeoutId);
 			this.timeoutId = undefined;
+		}
+	}
+
+	/**
+	 * Calculates when the next scheduler run should happen and sets appropriate timeout.
+	 * @private
+	 * @returns {void}
+	 *
+	 * @description
+	 * Smart scheduling that calculates the optimal time for the next scheduler run based on:
+	 * - When the next pending task becomes ready
+	 * - When delay periods end
+	 * - Whether there are tasks that can run immediately
+	 *
+	 * Uses setTimeout for precise timing instead of constant polling intervals.
+	 */
+	scheduleSmartTimeout() {
+		if (!this.isActive || this.destroyed) return;
+
+		this.clearSchedulerTimers();
+
+		const now = this.now();
+		let nextRunTime = Infinity;
+		let shouldRunNow = false;
+
+		// Check if we have ready tasks that can run immediately
+		if (this.readyHeap.size() > 0 && this.running.size < this.options.concurrency) {
+			const delay = this.lastCompletedPriority !== null ? this.options.delays[this.lastCompletedPriority] || 0 : 0;
+			const delayActive = delay > 0 && now < this.nextAvailableTime;
+
+			if (!delayActive) {
+				shouldRunNow = true;
+			} else {
+				// Check for bypass tasks
+				const heapArray = this.readyHeap.heap.slice();
+				for (const task of heapArray) {
+					if (task.bypassDelay && (!task.expireAt || now < task.expireAt)) {
+						shouldRunNow = true;
+						break;
+					}
+				}
+
+				if (!shouldRunNow) {
+					nextRunTime = Math.min(nextRunTime, this.nextAvailableTime);
+				}
+			}
+		}
+
+		// Check when next pending task becomes ready
+		const nextPending = this.pendingHeap.peek();
+		if (nextPending) {
+			nextRunTime = Math.min(nextRunTime, nextPending.readyAt);
+		}
+
+		// If we should run now or very soon, do it immediately
+		if (shouldRunNow || nextRunTime <= now + 1) {
+			// Use setImmediate to allow abort signals to be processed
+			setImmediate(() => this.runScheduler());
+			return;
+		}
+
+		// If we have a future time to schedule for
+		if (nextRunTime < Infinity) {
+			const delay = Math.min(nextRunTime - now, 2147483647); // Max 32-bit int for setTimeout
+			this.schedulerTimeout = setTimeout(() => {
+				this.runScheduler();
+			}, delay);
+		}
+	}
+
+	/**
+	 * Runs the main scheduler logic and reschedules if needed.
+	 * @private
+	 * @returns {void}
+	 *
+	 * @description
+	 * Executes the scheduler tick logic and then determines if more scheduling is needed.
+	 * Tracks when scheduler last ran for healing mechanism.
+	 */
+	runScheduler() {
+		if (!this.isActive || this.destroyed) return;
+
+		this.lastSchedulerRun = this.now();
+		this.schedulerTick();
+
+		// Schedule next run if there's still work to do
+		this.scheduleSmartTimeout();
+	}
+
+	/**
+	 * Starts the self-healing interval that ensures scheduler continues working.
+	 * @private
+	 * @returns {void}
+	 *
+	 * @description
+	 * Healing mechanism that periodically checks if the scheduler should be running
+	 * but isn't due to timeout failures or other issues. Runs every healingInterval milliseconds.
+	 */
+	startHealingInterval() {
+		if (this.healingInterval) {
+			clearInterval(this.healingInterval);
+		}
+
+		this.healingInterval = setInterval(() => {
+			if (!this.isActive || this.destroyed) return;
+
+			const now = this.now();
+			const hasWork = this.pendingHeap.size() > 0 || this.readyHeap.size() > 0;
+			const timeSinceLastRun = now - this.lastSchedulerRun;
+			const shouldHaveRun = hasWork && timeSinceLastRun > this.options.healingInterval;
+
+			// If we should have run but haven't, and we don't have an active timeout, heal
+			if (shouldHaveRun && !this.schedulerTimeout) {
+				console.warn(`HoldMyTask: Healing scheduler - ${timeSinceLastRun}ms since last run`);
+				this.runScheduler();
+			}
+		}, this.options.healingInterval);
+	}
+
+	/**
+	 * Clears all scheduler-related timers.
+	 * @private
+	 * @returns {void}
+	 *
+	 * @description
+	 * Cleans up both the main scheduler timeout and the healing interval timer.
+	 */
+	clearSchedulerTimers() {
+		if (this.schedulerTimeout) {
+			clearTimeout(this.schedulerTimeout);
+			this.schedulerTimeout = null;
+		}
+		if (this.healingInterval) {
+			clearInterval(this.healingInterval);
+			this.healingInterval = null;
 		}
 	}
 }

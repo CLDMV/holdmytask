@@ -14,12 +14,22 @@ export class HoldMyTask extends EventEmitter<[never]> {
      * @param {number} [options.defaultPriority=0] - Default priority for tasks (higher numbers = higher priority)
      * @param {number} [options.maxQueue=Infinity] - Maximum number of tasks that can be queued
      * @param {Object} [options.delays={}] - Map of priority levels to delay times in milliseconds between task completions
+     * @param {boolean} [options.smartScheduling=true] - Use dynamic timeouts instead of constant polling for better performance
+     * @param {number} [options.tick=25] - Polling interval in milliseconds when smartScheduling is disabled
+     * @param {number} [options.healingInterval=5000] - Self-healing check interval in milliseconds (smart scheduling only)
      * @example
      * const queue = new HoldMyTask({
      *   concurrency: 2,
      *   tick: 50,
      *   defaultPriority: 1,
      *   delays: { 0: 1000, 1: 500 }
+     * });
+     *
+     * @example
+     * // Use traditional polling instead of smart scheduling
+     * const legacyQueue = new HoldMyTask({
+     *   smartScheduling: false,
+     *   tick: 50
      * });
      */
     constructor(options?: {
@@ -29,6 +39,9 @@ export class HoldMyTask extends EventEmitter<[never]> {
         defaultPriority?: number;
         maxQueue?: number;
         delays?: any;
+        smartScheduling?: boolean;
+        tick?: number;
+        healingInterval?: number;
     });
     options: {
         concurrency: number;
@@ -37,6 +50,8 @@ export class HoldMyTask extends EventEmitter<[never]> {
         defaultPriority: number;
         maxQueue: number;
         delays: any;
+        smartScheduling: boolean;
+        healingInterval: number;
     };
     pendingHeap: MinHeap;
     readyHeap: MinHeap;
@@ -48,6 +63,10 @@ export class HoldMyTask extends EventEmitter<[never]> {
     destroyed: boolean;
     lastCompletedPriority: any;
     nextAvailableTime: number;
+    schedulerTimeout: NodeJS.Timeout;
+    healingInterval: NodeJS.Timeout;
+    lastSchedulerRun: number;
+    intervalId: NodeJS.Timeout;
     /**
      * Adds a task to the queue for execution. Supports both callback and promise-based APIs.
      * @param {Function} task - The task function to execute. Can be sync or async.
@@ -56,7 +75,8 @@ export class HoldMyTask extends EventEmitter<[never]> {
      * @param {number} [options.priority] - Task priority (higher numbers run first)
      * @param {number} [options.timestamp] - When the task should be ready to run (milliseconds since epoch)
      * @param {AbortSignal} [options.signal] - AbortSignal to cancel the task
-     * @param {number} [options.timeout] - Task timeout in milliseconds
+     * @param {number} [options.timeout] - Task timeout in milliseconds (for execution time limit)
+     * @param {number} [options.expire] - Task expiration timestamp or milliseconds from now (for queue waiting time limit)
      * @param {number} [options.delay] - Delay after task completion before next task of same priority
      * @param {boolean} [options.bypassDelay] - If true, skip any active delay period and start immediately
      * @param {*} [options.metadata] - Arbitrary metadata to attach to the task
@@ -73,7 +93,7 @@ export class HoldMyTask extends EventEmitter<[never]> {
      * });
      *
      * // With options
-     * const task = queue.enqueue(myTask, { priority: 5, timeout: 30000 });
+     * const task = queue.enqueue(myTask, { priority: 5, timeout: 30000, expire: 10000 });
      *
      * // Bypass current delay for urgent task
      * const urgent = queue.enqueue(urgentTask, { priority: 10, bypassDelay: true });
@@ -86,6 +106,7 @@ export class HoldMyTask extends EventEmitter<[never]> {
         timestamp?: number;
         signal?: AbortSignal;
         timeout?: number;
+        expire?: number;
         delay?: number;
         bypassDelay?: boolean;
         metadata?: any;
@@ -127,12 +148,19 @@ export class HoldMyTask extends EventEmitter<[never]> {
      */
     clear(): void;
     /**
-     * Returns the total number of tasks in the queue (pending, ready, and running).
-     * @returns {number} Total number of tasks
+     * Returns the number of tasks in the queue.
+     * @returns {number} Number of tasks in the queue
      * @example
      * const totalTasks = queue.size(); // 5
      */
     size(): number;
+    /**
+     * Returns the number of tasks in the queue (alias for size()).
+     * @returns {number} Number of tasks in the queue
+     * @example
+     * const totalTasks = queue.length(); // 5
+     */
+    length(): number;
     /**
      * Returns the number of currently running tasks.
      * @returns {number} Number of running tasks
@@ -162,7 +190,6 @@ export class HoldMyTask extends EventEmitter<[never]> {
      * @private
      */
     private scheduleNextTick;
-    intervalId: NodeJS.Timeout;
     timeoutId: NodeJS.Timeout;
     /**
      * Main scheduler tick that moves ready tasks and starts execution.
@@ -170,6 +197,13 @@ export class HoldMyTask extends EventEmitter<[never]> {
      * @private
      */
     private schedulerTick;
+    /**
+     * Handles an expired task by removing it and calling appropriate error handling.
+     * @param {Object} item - The expired task item
+     * @returns {void}
+     * @private
+     */
+    private expireTask;
     /**
      * Starts execution of a ready task.
      * @param {Object} item - The task item to execute
@@ -183,6 +217,49 @@ export class HoldMyTask extends EventEmitter<[never]> {
      * @private
      */
     private clearTimers;
+    /**
+     * Calculates when the next scheduler run should happen and sets appropriate timeout.
+     * @private
+     * @returns {void}
+     *
+     * @description
+     * Smart scheduling that calculates the optimal time for the next scheduler run based on:
+     * - When the next pending task becomes ready
+     * - When delay periods end
+     * - Whether there are tasks that can run immediately
+     *
+     * Uses setTimeout for precise timing instead of constant polling intervals.
+     */
+    private scheduleSmartTimeout;
+    /**
+     * Runs the main scheduler logic and reschedules if needed.
+     * @private
+     * @returns {void}
+     *
+     * @description
+     * Executes the scheduler tick logic and then determines if more scheduling is needed.
+     * Tracks when scheduler last ran for healing mechanism.
+     */
+    private runScheduler;
+    /**
+     * Starts the self-healing interval that ensures scheduler continues working.
+     * @private
+     * @returns {void}
+     *
+     * @description
+     * Healing mechanism that periodically checks if the scheduler should be running
+     * but isn't due to timeout failures or other issues. Runs every healingInterval milliseconds.
+     */
+    private startHealingInterval;
+    /**
+     * Clears all scheduler-related timers.
+     * @private
+     * @returns {void}
+     *
+     * @description
+     * Cleans up both the main scheduler timeout and the healing interval timer.
+     */
+    private clearSchedulerTimers;
 }
 import { EventEmitter } from "events";
 import { MinHeap } from "./utils.mjs";
