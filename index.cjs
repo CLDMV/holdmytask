@@ -25,5 +25,14 @@ const requireESM = createRequire(__filename);
 
 const { HoldMyTask } = requireESM("./index.mjs");
 
-module.exports = { HoldMyTask };
+// Export main class
+module.exports = HoldMyTask; // Default export
 module.exports.HoldMyTask = HoldMyTask;
+
+// Common queue system aliases
+module.exports.queue = HoldMyTask;
+module.exports.Queue = HoldMyTask;
+module.exports.TaskManager = HoldMyTask;
+module.exports.TaskQueue = HoldMyTask;
+module.exports.QueueManager = HoldMyTask;
+module.exports.TaskProcessor = HoldMyTask;

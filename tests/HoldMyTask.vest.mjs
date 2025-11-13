@@ -159,7 +159,7 @@ describe.each([
 		expect(events).toEqual(["start", "success", "drain"]);
 	});
 
-	test("respects maxQueue limit", () => {
+	test("respects maxQueue limit", async () => {
 		const q = new HoldMyTask({ smartScheduling, maxQueue: 2 });
 
 		q.enqueue(
@@ -173,13 +173,25 @@ describe.each([
 			{}
 		);
 
-		expect(() =>
-			q.enqueue(
-				() => "c",
-				() => {},
-				{}
-			)
-		).toThrow("Queue is full");
+		// Should emit error event instead of throwing
+		let errorReceived = false;
+		q.on("error", (errorInfo) => {
+			expect(errorInfo.error.message).toBe("Queue is full");
+			errorReceived = true;
+		});
+
+		// This should trigger error event since queue is full
+		q.enqueue(
+			() => "c",
+			() => {},
+			{}
+		).catch(() => {}); // Handle the promise rejection
+
+		// Wait for the error event to be emitted
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(errorReceived).toBe(true);
+
+		q.destroy();
 	});
 
 	test("handles task errors", async () => {
@@ -363,7 +375,8 @@ describe.each([
 		for (let i = 1; i < executionOrder.length; i++) {
 			const prevTask = executionOrder[i - 1];
 			const currTask = executionOrder[i];
-			const expectedDelay = q.options.delays[prevTask.priority] || 0;
+			const priorityConfig = q.getPriorityConfig(prevTask.priority);
+			const expectedDelay = priorityConfig.delay || 0;
 			if (expectedDelay > 0) {
 				expect(currTask.time - prevTask.time).toBeGreaterThanOrEqual(expectedDelay - 10); // Allow some tolerance
 			}
@@ -840,5 +853,23 @@ describe.each([
 		// Task3 waits for task2's completion delay (200ms since task2 is priority 1)
 		const task2ToTask3Gap = timestamps[2] - timestamps[1];
 		expect(task2ToTask3Gap).toBeGreaterThan(150);
+	});
+
+	test("handles maxQueue: -1 as unlimited queue", async () => {
+		const q = new HoldMyTask({ smartScheduling, maxQueue: -1 });
+
+		// Internal maxQueue should be set to Infinity
+		expect(q.options.maxQueue).toBe(Infinity);
+
+		// Should be able to enqueue many tasks without hitting limit
+		const tasks = [];
+		for (let i = 0; i < 1000; i++) {
+			tasks.push(q.enqueue(() => `task-${i}`));
+		}
+
+		// All tasks should be queued successfully
+		expect(q.tasks.size).toBe(1000);
+
+		q.destroy();
 	});
 }); // End of describe block for scheduling modes

@@ -38,7 +38,14 @@ The library provides flexible import options for different use cases:
 ### Production (Default)
 
 ```javascript
+// Named import
 import { HoldMyTask } from "@cldmv/holdmytask";
+
+// Default import
+import HoldMyTask from "@cldmv/holdmytask";
+
+// Import everything
+import * as HoldMyTaskLib from "@cldmv/holdmytask";
 // Uses optimized distribution files
 ```
 
@@ -47,6 +54,27 @@ import { HoldMyTask } from "@cldmv/holdmytask";
 ```javascript
 import { HoldMyTask } from "@cldmv/holdmytask/main";
 // Conditional: uses source files in development, dist files in production
+```
+
+### Common Queue System Aliases
+
+For familiarity with other queue systems, several aliases are available:
+
+```javascript
+import {
+	HoldMyTask, // Original class name
+	queue, // Lower-case alias for common conventions
+	Queue, // Standard queue naming
+	TaskManager, // Task management systems
+	TaskQueue, // Task-specific queuing
+	QueueManager, // Queue management systems
+	TaskProcessor // Task processing systems
+} from "@cldmv/holdmytask";
+
+// All aliases are functionally identical
+const myQueue = new queue({ concurrency: 5 });
+const stdQueue = new Queue({ concurrency: 5 });
+const manager = new TaskManager({ priorities: { high: { delay: 100 } } });
 ```
 
 ### Direct Source Import (Development Only)
@@ -137,6 +165,67 @@ queue.enqueue(task1, callback, options);
 const result = await queue.enqueue(task2, options);
 ```
 
+## 🏗️ Async Constructor Pattern
+
+HoldMyTask works excellently with async constructor patterns for classes that need initialization:
+
+```javascript
+class AsyncService {
+	constructor(options = {}) {
+		this.queue = new HoldMyTask({
+			concurrency: options.concurrency || 2,
+			maxQueue: -1 // Unlimited queue for initialization tasks
+		});
+		this.ready = this.initialize();
+	}
+
+	async initialize() {
+		// Initialization tasks that need to complete before the service is ready
+		await this.queue.enqueue(async () => {
+			this.config = await this.loadConfiguration();
+		});
+
+		await this.queue.enqueue(async () => {
+			this.database = await this.connectToDatabase();
+		});
+
+		await this.queue.enqueue(async () => {
+			this.cache = await this.initializeCache();
+		});
+
+		return this;
+	}
+
+	async processData(data) {
+		// Ensure service is initialized before processing
+		await this.ready;
+
+		return this.queue.enqueue(async () => {
+			// Process data using initialized resources
+			return this.database.save(await this.transformData(data));
+		});
+	}
+
+	// Clean shutdown
+	async shutdown() {
+		await this.queue.drain(); // Wait for all tasks to complete
+		await this.database.close();
+	}
+}
+
+// Usage
+const service = new AsyncService({ concurrency: 5 });
+await service.ready; // Wait for initialization
+const result = await service.processData(someData);
+```
+
+This pattern is particularly useful for:
+
+- **Database connections**: Initialize connections before accepting work
+- **Configuration loading**: Load settings before processing tasks
+- **Resource acquisition**: Set up required resources in a controlled manner
+- **Dependency injection**: Initialize dependencies in the correct order
+
 ## 📚 API Reference
 
 ### Constructor
@@ -145,6 +234,28 @@ const result = await queue.enqueue(task2, options);
 const queue = new HoldMyTask(options?)
 ```
 
+### Async Initialization Pattern
+
+For async initialization that allows event listeners to be attached before any initialization events can fire, use `sync: false`:
+
+```javascript
+// Create instance with async initialization
+const queuePromise = new HoldMyTask({
+	concurrency: 5,
+	maxQueue: 100,
+	sync: false // Enable async initialization
+});
+
+// Attach event listeners before initialization completes
+queuePromise.on("error", (err) => console.error("Queue error:", err));
+queuePromise.on("warning", (warning) => console.warn("Warning:", warning.message));
+
+// Wait for initialization to complete
+const queue = await queuePromise;
+```
+
+This pattern is particularly useful when you need to handle initialization errors or warnings through event listeners rather than try/catch blocks.
+
 **Options:**
 
 - `concurrency` (number, default: 1) - Maximum concurrent tasks
@@ -152,11 +263,21 @@ const queue = new HoldMyTask(options?)
 - `tick` (number, default: 25) - Scheduler tick interval in milliseconds (used when smartScheduling is false)
 - `autoStart` (boolean, default: true) - Whether to start processing immediately
 - `defaultPriority` (number, default: 0) - Default task priority
-- `maxQueue` (number, default: Infinity) - Maximum queued tasks
-- `delays` (object, default: {}) - Priority-to-delay mapping for completion delays
-- `coalescingWindowDuration` (number, default: 200) - Time window in milliseconds for grouping coalescing tasks
-- `coalescingMaxDelay` (number, default: 1000) - Maximum delay in milliseconds before forcing coalescing group execution
-- `coalescingResolveAllPromises` (boolean, default: true) - Whether all promises in a coalescing group resolve with the result
+- `maxQueue` (number, default: Infinity) - Maximum queued tasks. Use `-1` for unlimited queue capacity (equivalent to `Infinity`)
+- `delays` (object, default: {}) - **DEPRECATED:** Priority-to-delay mapping for completion delays (use `priorities` instead)
+- `priorities` (object, default: {}) - Priority-specific configuration: `{ [priority]: { delay, start } }`
+- `coalescing` (object) - Enhanced coalescing configuration
+  - `defaults` (object) - Default settings for all coalescing keys
+    - `windowDuration` (number, default: 200) - Window duration in milliseconds
+    - `maxDelay` (number, default: 1000) - Maximum delay before forcing execution
+    - `delay` (number) - Default completion delay for coalescing tasks
+    - `start` (number) - Default start delay for coalescing tasks
+    - `resolveAllPromises` (boolean, default: true) - Whether all promises resolve with result
+    - `multipleCallbacks` (boolean, default: false) - Whether to call multiple callbacks
+  - `keys` (object) - Per-key configuration overrides: `{ [key]: { windowDuration, maxDelay, delay, start, ... } }`
+- `coalescingWindowDuration` (number, default: 200) - **DEPRECATED:** Use `coalescing.defaults.windowDuration`
+- `coalescingMaxDelay` (number, default: 1000) - **DEPRECATED:** Use `coalescing.defaults.maxDelay`
+- `coalescingResolveAllPromises` (boolean, default: true) - **DEPRECATED:** Use `coalescing.defaults.resolveAllPromises`
 - `onError` (function) - Global error handler
 - `now` (function) - Injectable clock for testing
 
@@ -197,14 +318,75 @@ Adds a task to the queue.
 
 When `callback` is omitted, returns a Promise that resolves with the task result or rejects with an error.
 
+#### Method Aliases
+
+For compatibility with common queue system naming conventions, the following aliases are available:
+
+- `schedule(task, callback?, options?)` - Alias for `enqueue()`
+- `add(task, callback?, options?)` - Alias for `enqueue()`
+
+```javascript
+// These are all equivalent:
+queue.enqueue(task, options);
+queue.schedule(task, options);
+queue.add(task, options);
+```
+
+#### Custom Task IDs
+
+Tasks can be assigned custom IDs for easier tracking and management:
+
+```javascript
+// Assign custom ID
+const task = queue.enqueue(myTask, { id: "user-action-123" });
+console.log(task.id); // 'user-action-123'
+
+// Task management by ID
+queue.has("user-action-123"); // true
+const task = queue.get("user-action-123"); // task object or null
+queue.cancel("user-action-123", "User cancelled"); // returns true if cancelled
+
+// Uniqueness is enforced
+queue.enqueue(task1, { id: "duplicate" });
+queue.enqueue(task2, { id: "duplicate" }); // throws: Task ID "duplicate" already exists
+```
+
+**ID Management Methods:**
+
+- `has(id)` - Check if a task with the given ID exists
+- `get(id)` - Get task object by ID (returns null if not found)
+- `cancel(id, reason?)` - Cancel task by ID (returns boolean success)
+
+**Method Aliases (for backward compatibility):**
+
+- `hasTask(id)` - Alias for `has(id)`
+- `getTask(id)` - Alias for `get(id)`
+- `cancelTask(id, reason?)` - Alias for `cancel(id, reason?)`
+
 #### Control Methods
 
 - `pause()` - Pause task execution
 - `resume()` - Resume task execution
 - `clear()` - Cancel all pending tasks
 - `size()` - Get total queued tasks
+- `length()` - Alias for `size()` - get total queued tasks
 - `inflight()` - Get currently running tasks
 - `destroy()` - Destroy the queue and cancel all tasks
+- `shutdown()` - Alias for `destroy()` - convenient for common queue system naming
+- `now()` - Get current timestamp (useful for testing with custom clocks)
+
+#### Configuration Methods
+
+- `configurePriority(priority, config)` - Configure or update priority-specific settings
+  - `priority` (string|number) - Priority level to configure
+  - `config` (object) - Configuration: `{ delay?, maxDelay?, start? }`
+- `configureCoalescingKey(key, config)` - Configure or update coalescing key settings
+  - `key` (string) - Coalescing key to configure
+  - `config` (object) - Configuration: `{ windowDuration?, maxDelay?, delay?, start?, multipleCallbacks?, resolveAllPromises? }`
+- `getPriorityConfig(priority, taskOptions?)` - Get effective configuration for a specific priority
+- `getPriorityConfigurations()` - Get all configured priorities and their settings
+- `getCoalescingConfig(coalescingKey, taskOptions?)` - Get effective configuration for a specific coalescing key
+- `getCoalescingConfigurations()` - Get all configured coalescing keys and their settings
 
 ### Events
 
@@ -224,6 +406,31 @@ queue.on("cancel", (task, reason) => {
 queue.on("drain", () => {
 	/* all tasks completed */
 });
+queue.on("warning", (warning) => {
+	/* deprecation or configuration warning */
+});
+```
+
+### Deprecation Warning Events
+
+When deprecated configuration options are used, HoldMyTask emits `warning` events to help with migration:
+
+```javascript
+const queue = new HoldMyTask({
+	delays: { 1: 100 }, // Deprecated option
+	coalescingWindowDuration: 200 // Deprecated option
+});
+
+queue.on("warning", (warning) => {
+	console.warn(`Deprecation Warning: ${warning.message}`);
+	console.warn(`Use: ${warning.replacement}`);
+	console.warn(`In: ${warning.source}`);
+});
+
+// Output:
+// Deprecation Warning: Option 'delays' is deprecated
+// Use: priorities: { 1: { delay: 100 } }
+// In: constructor options
 ```
 
 ## ⚙️ Concurrency & Delays Interaction
@@ -300,6 +507,33 @@ This architecture enables handling thousands of tasks with precise timing contro
 
 [![npm unpacked size](https://img.shields.io/npm/unpacked-size/%40cldmv%2Fholdmytask.svg?style=for-the-badge&logo=npm&logoColor=white&labelColor=CB3837)](https://www.npmjs.com/package/@cldmv/holdmytask) [![Repo size](https://img.shields.io/github/repo-size/CLDMV/holdmytask?style=for-the-badge&logo=github&logoColor=white&labelColor=181717)](https://github.com/CLDMV/holdmytask)
 
+### Unlimited Queue Capacity
+
+For scenarios requiring unlimited task queuing, you can set `maxQueue` to `-1`:
+
+```javascript
+const queue = new HoldMyTask({
+	concurrency: 5,
+	maxQueue: -1 // Unlimited queue capacity (equivalent to Infinity)
+});
+
+// Now you can enqueue unlimited tasks without hitting queue limits
+for (let i = 0; i < 100000; i++) {
+	queue.enqueue(async () => processTask(i));
+}
+```
+
+**Use Cases:**
+
+- **Batch processing**: When processing large datasets where queue size is unpredictable
+- **Event-driven systems**: Where task volume can spike dramatically
+- **Data pipelines**: For ETL operations with variable input sizes
+- **Development/testing**: When you need to stress-test with large task volumes
+
+**Memory Considerations:**
+
+While `-1` allows unlimited queuing, be mindful of memory usage with very large task sets. Each queued task consumes memory until executed.
+
 ## 🎯 Advanced Features
 
 ### Priority System
@@ -321,6 +555,78 @@ await queue.enqueue(task1, { priority: 1 });
 await queue.enqueue(task2, { priority: 10 }); // Runs first
 await queue.enqueue(task3, { priority: 5 });
 ```
+
+### Enhanced Priority & Coalescing Configuration
+
+HoldMyTask supports comprehensive priority and coalescing configuration for sophisticated timing control:
+
+```javascript
+const queue = new HoldMyTask({
+	concurrency: 3,
+	// Priority-specific defaults (replaces legacy delays)
+	priorities: {
+		1: { delay: 200, start: 0 }, // High priority: 200ms delay, immediate start
+		2: { delay: 100, start: 25 }, // Medium priority: 100ms delay, 25ms start delay
+		3: { delay: 50, start: 50 } // Low priority: 50ms delay, 50ms start delay
+	},
+	// Enhanced coalescing with per-key settings
+	coalescing: {
+		defaults: {
+			windowDuration: 200,
+			maxDelay: 1000,
+			delay: 75, // Default completion delay for coalescing tasks
+			start: 25, // Default start delay for coalescing tasks
+			resolveAllPromises: true
+		},
+		keys: {
+			"ui.update": {
+				windowDuration: 100,
+				maxDelay: 500,
+				delay: 25, // Fast UI updates
+				start: 0
+			},
+			"api.batch": {
+				windowDuration: 1000,
+				maxDelay: 5000,
+				delay: 200, // Slower API operations
+				start: 100
+			}
+		}
+	}
+});
+
+// Dynamic configuration
+queue.configurePriority(4, { delay: 300, start: 75 });
+queue.configureCoalescingKey("data.sync", {
+	windowDuration: 800,
+	maxDelay: 3000,
+	delay: 150,
+	start: 50
+});
+
+// Get configuration information
+const priority4Config = queue.getPriorityConfig(4);
+console.log(`Priority 4: ${priority4Config.delay}ms delay, ${priority4Config.start}ms start delay`);
+
+const dataSyncConfig = queue.getCoalescingConfig("data.sync");
+console.log(`Data sync: ${dataSyncConfig.windowDuration}ms window, ${dataSyncConfig.maxDelay}ms max delay`);
+
+// Get all configurations
+const allPriorities = queue.getPriorityConfigurations();
+const allCoalescingKeys = queue.getCoalescingConfigurations();
+console.log("All priority configs:", allPriorities);
+console.log("All coalescing configs:", allCoalescingKeys);
+```
+
+**Configuration Hierarchy:**
+
+1. Task-level options (highest priority)
+2. Coalescing key configuration
+3. Priority defaults
+4. Coalescing defaults
+5. System defaults (lowest priority)
+
+**Backward Compatibility:** Legacy `delays` options are automatically converted to the new `priorities` format.
 
 ### Smart Scheduling
 
@@ -1216,10 +1522,23 @@ npm run build
 
 ### Testing with Injectable Clock
 
+For testing, you can inject a custom clock function and use the `now()` method to get the current time according to your queue:
+
 ```javascript
+let mockTime = Date.now();
 const queue = new HoldMyTask({
 	now: () => mockTime // Control time in tests
 });
+
+// In tests, you can advance time
+mockTime += 1000; // Advance by 1 second
+
+// The queue's now() method respects your custom clock
+console.log(queue.now()); // Returns mockTime value
+console.log(Date.now()); // Returns actual system time
+
+// Useful for testing time-based behavior
+queue.enqueue(task, { timestamp: queue.now() + 5000 }); // 5 seconds from mock time
 ```
 
 ## 📄 License

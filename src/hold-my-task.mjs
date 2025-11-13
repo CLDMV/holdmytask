@@ -29,48 +29,289 @@ export class HoldMyTask extends EventEmitter {
 	 * @param {boolean} [options.autoStart=true] - Whether to automatically start the scheduler
 	 * @param {number} [options.defaultPriority=0] - Default priority for tasks (higher numbers = higher priority)
 	 * @param {number} [options.maxQueue=Infinity] - Maximum number of tasks that can be queued
-	 * @param {Object} [options.delays={}] - Map of priority levels to delay times in milliseconds between task completions
+	 * @param {Object} [options.delays={}] - DEPRECATED: Use priorities[priority].delay instead. Legacy priority-to-delay mapping (auto-converted to priorities)
 	 * @param {boolean} [options.smartScheduling=true] - Use dynamic timeouts instead of constant polling for better performance
 	 * @param {number} [options.tick=25] - Polling interval in milliseconds when smartScheduling is disabled
 	 * @param {number} [options.healingInterval=5000] - Self-healing check interval in milliseconds (smart scheduling only)
-	 * @param {number} [options.coalescingWindowDuration=1000] - Default coalescing window duration in milliseconds
-	 * @param {number} [options.coalescingMaxDelay=2000] - Maximum delay before a coalesced task must run regardless of new tasks
-	 * @param {boolean} [options.coalescingMultipleCallbacks=false] - If true, call all coalesced callbacks; if false, call only the latest
-	 * @param {boolean} [options.coalescingResolveAllPromises=true] - If true, resolve all coalesced promises with same result; if false, reject non-latest
+	 * @param {Object} [options.priorities={}] - Priority-specific default configurations
+	 * @param {Object} [options.coalescing] - Enhanced coalescing configuration (preferred over flat options)
+	 * @param {Object} [options.coalescing.defaults] - Default coalescing settings for all keys
+	 * @param {number} [options.coalescing.defaults.windowDuration=200] - Default window duration in milliseconds
+	 * @param {number} [options.coalescing.defaults.maxDelay=1000] - Default maximum delay in milliseconds
+	 * @param {number} [options.coalescing.defaults.postDelay] - Default post-completion delay in milliseconds
+	 * @param {number} [options.coalescing.defaults.startDelay] - Default pre-execution delay in milliseconds
+	 * @param {number} [options.coalescing.defaults.delay] - DEPRECATED: Use postDelay instead
+	 * @param {number} [options.coalescing.defaults.start] - DEPRECATED: Use startDelay instead
+	 * @param {boolean} [options.coalescing.defaults.resolveAllPromises=true] - Default promise resolution behavior
+	 * @param {boolean} [options.coalescing.defaults.multipleCallbacks=false] - Default callback execution behavior
+	 * @param {Object} [options.coalescing.keys] - Per-coalescingKey configuration overrides (windowDuration, maxDelay, postDelay, startDelay, etc.)
+	 * @param {number} [options.coalescingWindowDuration=200] - DEPRECATED: Use coalescing.defaults.windowDuration instead
+	 * @param {number} [options.coalescingMaxDelay=1000] - DEPRECATED: Use coalescing.defaults.maxDelay instead
+	 * @param {boolean} [options.coalescingMultipleCallbacks=false] - DEPRECATED: Use coalescing.defaults.multipleCallbacks instead
+	 * @param {boolean} [options.coalescingResolveAllPromises=true] - DEPRECATED: Use coalescing.defaults.resolveAllPromises instead
 	 * @example
+	 * // Enhanced configuration with priority defaults and extended coalescing
 	 * const queue = new HoldMyTask({
 	 *   concurrency: 2,
-	 *   tick: 50,
-	 *   defaultPriority: 1,
 	 *   delays: { 0: 1000, 1: 500 },
+	 *   priorities: {
+	 *     1: { postDelay: 100, startDelay: 0 },    // High priority: 100ms post-completion delay, immediate start
+	 *     2: { postDelay: 200, startDelay: 50 },   // Medium priority: 200ms post-completion delay, 50ms pre-execution delay
+	 *     3: { postDelay: 0, startDelay: 100 }     // Low priority: no post-completion delay, 100ms pre-execution delay
+	 *   },
+	 *   coalescing: {
+	 *     defaults: {
+	 *       windowDuration: 200,
+	 *       maxDelay: 1000,
+	 *       postDelay: 50,
+	 *       startDelay: 25,
+	 *       resolveAllPromises: true
+	 *     },
+	 *     keys: {
+	 *       'ui.update': { windowDuration: 100, maxDelay: 500, postDelay: 25, startDelay: 0 },
+	 *       'api.batch': { windowDuration: 1000, maxDelay: 5000, postDelay: 100, startDelay: 200 },
+	 *       'device.control': { windowDuration: 50, maxDelay: 200, delay: 10, start: 5 }
+	 *     }
+	 *   }
+	 * });
+	 *
+	 * @example
+	 * // Backward compatible (deprecated but still supported)
+	 * const legacyQueue = new HoldMyTask({
 	 *   coalescingWindowDuration: 1500,
 	 *   coalescingMaxDelay: 3000,
 	 *   coalescingResolveAllPromises: true
 	 * });
-	 *
-	 * @example
-	 * // Use traditional polling instead of smart scheduling
-	 * const legacyQueue = new HoldMyTask({
-	 *   smartScheduling: false,
-	 *   tick: 50
-	 * });
 	 */
+
+	/**
+	 * Transforms delay properties for backwards compatibility.
+	 * Converts 'start' -> 'startDelay' and 'delay' -> 'postDelay' while preserving new names.
+	 * @param {Object} config - Configuration object that may contain old or new property names
+	 * @param {HoldMyTask} [instance] - Optional instance to emit deprecation warnings on
+	 * @returns {Object} Transformed configuration with new property names
+	 * @private
+	 * @internal
+	 */
+	static _transformDelayProperties(config, instance = null) {
+		if (!config || typeof config !== "object") {
+			return config;
+		}
+
+		const transformed = { ...config };
+
+		// Transform old names to new names (backwards compatibility)
+		// New names take precedence if both are provided
+		if ("start" in config && !("startDelay" in config)) {
+			transformed.startDelay = config.start;
+			if (instance) {
+				setImmediate(() =>
+					instance.emit("warning", {
+						type: "deprecation",
+						message: "Property 'start' is deprecated. Use 'startDelay' instead.",
+						deprecated: "start",
+						replacement: "startDelay"
+					})
+				);
+			}
+		}
+		delete transformed.start; // Always remove old property
+
+		if ("delay" in config && !("postDelay" in config)) {
+			transformed.postDelay = config.delay;
+			if (instance) {
+				setImmediate(() =>
+					instance.emit("warning", {
+						type: "deprecation",
+						message: "Property 'delay' is deprecated. Use 'postDelay' instead.",
+						deprecated: "delay",
+						replacement: "postDelay"
+					})
+				);
+			}
+		}
+		delete transformed.delay; // Always remove old property
+
+		return transformed;
+	}
+
 	constructor(options = {}) {
 		super();
+
+		// Sync mode is default for backwards compatibility
+		const syncMode = options.sync !== false;
+
+		if (syncMode) {
+			// Synchronous initialization - backwards compatible
+			this._initializeSync(options);
+		} else {
+			// Asynchronous initialization - modern usage
+			return this._initializeAsync(options);
+		}
+	}
+
+	/**
+	 * Synchronous initialization for backwards compatibility
+	 * @private
+	 * @param {Object} options - Configuration options
+	 */
+	_initializeSync(options) {
+		this._syncMode = true;
+		this._initializeCommon(options);
+	}
+
+	/**
+	 * Asynchronous initialization for modern usage
+	 * @private
+	 * @param {Object} options - Configuration options
+	 * @returns {Promise<HoldMyTask>} Promise that resolves to this instance
+	 */
+	async _initializeAsync(options) {
+		this._syncMode = false;
+
+		// Return promise for async initialization
+		return new Promise((resolve) => {
+			setImmediate(() => {
+				this._initializeCommon(options);
+				resolve(this);
+			});
+		});
+	}
+
+	/**
+	 * Common initialization logic used by both sync and async modes
+	 * @private
+	 * @param {Object} options - Configuration options
+	 */
+	_initializeCommon(options) {
+		// Remove internal options before processing
+		const cleanOptions = { ...options };
+		delete cleanOptions.sync;
+		delete cleanOptions.async;
+
+		// Backward compatibility: support old flat coalescing options
+		const legacyCoalescingDefaults = {
+			windowDuration: cleanOptions.coalescingWindowDuration ?? 200,
+			maxDelay: cleanOptions.coalescingMaxDelay ?? 1000,
+			multipleCallbacks: cleanOptions.coalescingMultipleCallbacks ?? false,
+			resolveAllPromises: cleanOptions.coalescingResolveAllPromises ?? true
+		};
+
+		// Emit deprecation warnings for legacy coalescing options
+		const deprecatedCoalescingOptions = [
+			{ old: "coalescingWindowDuration", new: "coalescing.defaults.windowDuration" },
+			{ old: "coalescingMaxDelay", new: "coalescing.defaults.maxDelay" },
+			{ old: "coalescingMultipleCallbacks", new: "coalescing.defaults.multipleCallbacks" },
+			{ old: "coalescingResolveAllPromises", new: "coalescing.defaults.resolveAllPromises" }
+		];
+
+		deprecatedCoalescingOptions.forEach(({ old, new: replacement }) => {
+			if (cleanOptions[old] !== undefined) {
+				setImmediate(() =>
+					this.emit("warning", {
+						type: "deprecation",
+						message: `Option '${old}' is deprecated. Use '${replacement}' instead.`,
+						deprecated: old,
+						replacement: replacement
+					})
+				);
+			}
+		});
+
+		// Enhanced coalescing configuration
+		const coalescingConfig = cleanOptions.coalescing || {};
+		const coalescingDefaults = HoldMyTask._transformDelayProperties(
+			{
+				...legacyCoalescingDefaults,
+				...coalescingConfig.defaults
+			},
+			this
+		);
+
+		// Transform coalescing keys configurations
+		const transformedCoalescingKeys = {};
+		if (coalescingConfig.keys && typeof coalescingConfig.keys === "object") {
+			for (const [key, config] of Object.entries(coalescingConfig.keys)) {
+				if (config != null) {
+					transformedCoalescingKeys[key] = HoldMyTask._transformDelayProperties(config, this);
+				}
+			}
+		}
+
+		// Transform legacy delays to new priorities format for backward compatibility
+		const transformedPriorities = {};
+
+		// First, transform any existing priority configurations to use new property names
+		if (cleanOptions.priorities && typeof cleanOptions.priorities === "object") {
+			for (const [priority, config] of Object.entries(cleanOptions.priorities)) {
+				const priorityNum = parseInt(priority);
+				if (!isNaN(priorityNum) && config != null) {
+					transformedPriorities[priorityNum] = HoldMyTask._transformDelayProperties(config, this);
+				}
+			}
+		}
+
+		// Then, handle legacy delays option (very old backwards compatibility)
+		if (cleanOptions.delays && typeof cleanOptions.delays === "object") {
+			// Emit deprecation warning for legacy delays option
+			setImmediate(() =>
+				this.emit("warning", {
+					type: "deprecation",
+					message:
+						"Option 'delays' is deprecated. Use 'priorities' instead with { [priority]: { postDelay: value, startDelay: 0 } } format.",
+					deprecated: "delays",
+					replacement: "priorities"
+				})
+			);
+
+			for (const [priority, delay] of Object.entries(cleanOptions.delays)) {
+				const priorityNum = parseInt(priority);
+				if (!isNaN(priorityNum) && delay != null) {
+					transformedPriorities[priorityNum] = {
+						postDelay: delay, // Use new property name
+						startDelay: 0, // Use new property name
+						...(transformedPriorities[priorityNum] || {}) // Don't override explicit priority config
+					};
+				}
+			}
+		}
+
+		// Extract properties that have been transformed or handled specially
+		const remainingOptions = { ...cleanOptions };
+		delete remainingOptions.priorities;
+		delete remainingOptions.delays;
+		delete remainingOptions.coalescing;
+
+		// Handle special maxQueue values (-1 means unlimited)
+		let maxQueue = remainingOptions.maxQueue;
+		if (maxQueue === -1) {
+			maxQueue = Infinity;
+		}
+		delete remainingOptions.maxQueue;
+
 		this.options = {
 			concurrency: 1,
 			tick: 25,
 			autoStart: true,
 			defaultPriority: 0,
-			maxQueue: Infinity,
-			delays: {}, // priority -> delay in ms between tasks of that priority
+			maxQueue: maxQueue !== undefined ? maxQueue : Infinity,
+			priorities: transformedPriorities, // Unified priority configuration system
 			smartScheduling: true, // Use smart timeouts instead of polling by default
 			healingInterval: 5000, // Self-healing check interval (smart scheduling only)
-			coalescingWindowDuration: 1000, // Default coalescing window duration
-			coalescingMaxDelay: 2000, // Maximum delay before task must run
-			coalescingMultipleCallbacks: false, // Call multiple callbacks vs single latest
-			coalescingResolveAllPromises: true, // Resolve all promises vs reject non-latest
-			...options
+
+			// Enhanced coalescing configuration
+			coalescing: {
+				defaults: coalescingDefaults,
+				keys: transformedCoalescingKeys
+			},
+
+			// Legacy coalescing options (kept for backward compatibility but deprecated)
+			coalescingWindowDuration: legacyCoalescingDefaults.windowDuration,
+			coalescingMaxDelay: legacyCoalescingDefaults.maxDelay,
+			coalescingMultipleCallbacks: legacyCoalescingDefaults.multipleCallbacks,
+			coalescingResolveAllPromises: legacyCoalescingDefaults.resolveAllPromises,
+
+			...remainingOptions
 		};
 
 		// Initialize heaps
@@ -109,23 +350,39 @@ export class HoldMyTask extends EventEmitter {
 	}
 
 	/**
+	 * Internal convenience method to create a new HoldMyTask instance with async initialization.
+	 * This enables event listeners to be attached before validation errors can occur.
+	 * @param {Object} [options={}] - Configuration options
+	 * @returns {Promise<HoldMyTask>} Promise that resolves to the initialized instance
+	 * @private
+	 * @example
+	 * // Internal usage - prefer new HoldMyTask({ sync: false }) for public API
+	 * const queue = await HoldMyTask._create({ maxQueue: 100 });
+	 */
+	static async _create(options = {}) {
+		// Create instance with async mode
+		return new HoldMyTask({ ...options, sync: false });
+	}
+
+	/**
 	 * Adds a task to the queue for execution. Supports both callback and promise-based APIs.
 	 * @param {Function} task - The task function to execute. Can be sync or async.
 	 * @param {Function|Object} [optionsOrCallback] - Either a callback function or options object
 	 * @param {Object} [options={}] - Additional options (if callback was provided as second parameter)
+	 * @param {string|number} [options.id] - Custom task ID for identification and later reference (must be unique)
 	 * @param {number} [options.priority] - Task priority (higher numbers run first)
 	 * @param {number} [options.timestamp] - When the task should be ready to run (milliseconds since epoch)
 	 * @param {number} [options.start] - Milliseconds from now when the task should be ready to run (convenience for timestamp calculation)
 	 * @param {AbortSignal} [options.signal] - AbortSignal to cancel the task
 	 * @param {number} [options.timeout] - Task timeout in milliseconds (for execution time limit)
 	 * @param {number} [options.expire] - Task expiration timestamp or milliseconds from now (for queue waiting time limit)
-	 * @param {number} [options.delay] - Delay after task completion before next task of same priority
+	 * @param {number} [options.delay] - DEPRECATED: Use postDelay instead. Delay after task completion before next task of same priority
 	 * @param {boolean} [options.bypassDelay] - If true, skip any active delay period and start immediately
 	 * @param {string} [options.coalescingKey] - Key for task coalescing - tasks with same key will be coalesced within windows
-	 * @param {number} [options.coalescingWindowDuration] - Override default coalescing window duration in milliseconds
-	 * @param {number} [options.coalescingMaxDelay] - Override default max delay before task must run regardless of coalescing
-	 * @param {boolean} [options.coalescingMultipleCallbacks] - Override default for calling multiple vs single callback
-	 * @param {boolean} [options.coalescingResolveAllPromises] - Override default for resolving all promises vs rejecting non-latest
+	 * @param {number} [options.coalescingWindowDuration] - Override coalescing window duration (task-level override of key-level and defaults)
+	 * @param {number} [options.coalescingMaxDelay] - Override coalescing max delay (task-level override of key-level and defaults)
+	 * @param {boolean} [options.coalescingMultipleCallbacks] - Override callback behavior (task-level override of key-level and defaults)
+	 * @param {boolean} [options.coalescingResolveAllPromises] - Override promise resolution behavior (task-level override of key-level and defaults)
 	 * @param {*} [options.metadata] - Arbitrary metadata to attach to the task
 	 * @returns {Promise|Object} Promise (if no callback) or task control object with id, cancel, status methods
 	 * @throws {Error} If queue is destroyed or full
@@ -154,11 +411,15 @@ export class HoldMyTask extends EventEmitter {
 	 */
 	enqueue(task, optionsOrCallback, options = {}) {
 		if (this.destroyed) {
-			throw new Error("Queue is destroyed");
+			const error = new Error("Queue is destroyed");
+			setImmediate(() => this.emit("error", { error, task, options: optionsOrCallback }));
+			return Promise.reject(error);
 		}
 
 		if (this.tasks.size >= this.options.maxQueue) {
-			throw new Error("Queue is full");
+			const error = new Error("Queue is full");
+			setImmediate(() => this.emit("error", { error, task, options: optionsOrCallback }));
+			return Promise.reject(error);
 		}
 
 		// Handle dual API: callback can be second or third parameter
@@ -171,16 +432,27 @@ export class HoldMyTask extends EventEmitter {
 			finalOptions = { ...optionsOrCallback, ...options };
 		}
 
-		const id = String(this.nextId++);
+		// Generate ID - use custom ID if provided, otherwise auto-generate
+		const id = finalOptions.id ? String(finalOptions.id) : String(this.nextId++);
+
+		// Check if custom ID already exists
+		if (finalOptions.id && this.tasks.has(id)) {
+			const error = new Error(`Task with ID '${id}' already exists`);
+			setImmediate(() => this.emit("error", { error, task, options: finalOptions }));
+			return Promise.reject(error);
+		}
 		const now = this.now();
 
 		// Handle coalescing tasks separately
 		if (finalOptions.coalescingKey) {
-			return this.handleCoalescingTask(id, task, callback, finalOptions, now);
+			return this._handleCoalescingTask(id, task, callback, finalOptions, now);
 		}
 
-		// Regular task handling
-		const readyAt = finalOptions.timestamp ?? (finalOptions.start ? now + finalOptions.start : now);
+		// Regular task handling - apply priority defaults for start delay
+		const priority = finalOptions.priority ?? this.options.defaultPriority;
+		const priorityConfig = this.getPriorityConfig(priority, finalOptions);
+		const effectiveStart = finalOptions.start ?? priorityConfig.startDelay ?? 0;
+		const readyAt = finalOptions.timestamp ?? (effectiveStart ? now + effectiveStart : now);
 
 		// Calculate expiration timestamp
 		let expireAt = null;
@@ -199,7 +471,7 @@ export class HoldMyTask extends EventEmitter {
 			id,
 			task,
 			callback,
-			priority: finalOptions.priority ?? this.options.defaultPriority,
+			priority,
 			readyAt,
 			expireAt,
 			enqueueSeq: this.enqueueSeq++,
@@ -216,11 +488,11 @@ export class HoldMyTask extends EventEmitter {
 
 		// Check if signal is already aborted
 		if (finalOptions.signal?.aborted) {
-			this.cancelTask(id, "Task was aborted");
+			this.cancel(id, "Task was aborted");
 		} else if (finalOptions.signal) {
 			// For both callback and promise API, the queue handles signal abortion
 			finalOptions.signal.addEventListener("abort", () => {
-				this.cancelTask(id, "Task was aborted");
+				this.cancel(id, "Task was aborted");
 			});
 		}
 
@@ -228,14 +500,13 @@ export class HoldMyTask extends EventEmitter {
 			if (this.options.smartScheduling) {
 				this.scheduleSmartTimeout();
 			} else {
-				this.scheduleNextTick();
+				this._scheduleNextTick();
 			}
 		}
-
 		const tasks = this.tasks; // Capture reference
 		const taskHandle = {
 			id,
-			cancel: (reason) => this.cancelTask(id, reason),
+			cancel: (reason) => this.cancel(id, reason),
 			status: () => tasks.get(id)?.status ?? "canceled",
 			get startedAt() {
 				return tasks.get(id)?.startedAt;
@@ -261,7 +532,7 @@ export class HoldMyTask extends EventEmitter {
 			// Attach task handle properties to the promise with live getters
 			const tasksRef = this.tasks;
 			Object.defineProperty(promise, "id", { value: id, enumerable: true });
-			Object.defineProperty(promise, "cancel", { value: (reason) => this.cancelTask(id, reason), enumerable: true });
+			Object.defineProperty(promise, "cancel", { value: (reason) => this.cancel(id, reason), enumerable: true });
 			Object.defineProperty(promise, "status", { value: () => tasksRef.get(id)?.status ?? "canceled", enumerable: true });
 			Object.defineProperty(promise, "startedAt", { get: () => tasksRef.get(id)?.startedAt, enumerable: true });
 			Object.defineProperty(promise, "finishedAt", { get: () => tasksRef.get(id)?.finishedAt, enumerable: true });
@@ -277,6 +548,7 @@ export class HoldMyTask extends EventEmitter {
 	/**
 	 * Handles tasks with coalescingKey through the coalescing system.
 	 * @private
+	 * @internal
 	 * @param {string} id - Task ID
 	 * @param {Function} task - Task function
 	 * @param {Function|null} callback - Callback function (null for promise API)
@@ -284,28 +556,35 @@ export class HoldMyTask extends EventEmitter {
 	 * @param {number} now - Current timestamp
 	 * @returns {Promise|Object} Promise or task handle
 	 */
-	handleCoalescingTask(id, task, callback, options, now) {
+	_handleCoalescingTask(id, task, callback, options, now) {
 		const { coalescingKey } = options;
-		const windowDuration = options.coalescingWindowDuration ?? this.options.coalescingWindowDuration;
-		const maxDelay = options.coalescingMaxDelay ?? this.options.coalescingMaxDelay;
-		const multipleCallbacks = options.coalescingMultipleCallbacks ?? this.options.coalescingMultipleCallbacks;
-		const resolveAllPromises = options.coalescingResolveAllPromises ?? this.options.coalescingResolveAllPromises;
 
-		const readyAt = options.timestamp ?? (options.start ? now + options.start : now);
-		const windowEnd = now + windowDuration;
-		const mustRunBy = now + maxDelay;
+		// Get effective coalescing configuration including new delay and start options
+		const coalescingConfig = this.getCoalescingConfig(coalescingKey, options);
+		const priority = options.priority ?? this.options.defaultPriority;
+		const priorityConfig = this.getPriorityConfig(priority, options);
+
+		// Apply configuration priority: task options > coalescing key config > priority defaults > coalescing defaults
+		const effectiveStart = options.start ?? coalescingConfig.startDelay ?? priorityConfig.startDelay ?? 0;
+
+		const readyAt = options.timestamp ?? (effectiveStart ? now + effectiveStart : now);
+		const windowEnd = now + coalescingConfig.windowDuration;
+		const mustRunBy = now + coalescingConfig.maxDelay;
+
+		// Apply effective delay configuration
+		const effectiveDelay = options.delay ?? coalescingConfig.postDelay ?? priorityConfig.postDelay;
 
 		// Create task item (not added to main queue directly)
 		const taskItem = {
 			id,
 			task,
 			callback,
-			priority: options.priority ?? this.options.defaultPriority,
+			priority,
 			readyAt,
 			status: "coalescing",
 			signal: options.signal,
 			timeout: options.timeout,
-			delay: options.delay,
+			delay: effectiveDelay,
 			bypassDelay: options.bypassDelay || options.delay === -1,
 			metadata: options.metadata,
 			coalescingKey,
@@ -322,38 +601,46 @@ export class HoldMyTask extends EventEmitter {
 					this.emit("error", { ...taskItem, error: callbackError, callbackError: true });
 				}
 			}
-			return this.createTaskHandle(taskItem, callback);
+			return this._createTaskHandle(taskItem, callback);
 		}
 
 		// Add abort listener
 		options.signal?.addEventListener("abort", () => {
-			this.cancelCoalescingTask(id, coalescingKey, "Task was aborted");
+			this._cancelCoalescingTask(id, coalescingKey, "Task was aborted");
 		});
 
 		// Find compatible coalescing group or create new one
-		const compatibleGroup = this.findCompatibleCoalescingGroup(coalescingKey, now);
+		const compatibleGroup = this._findCompatibleCoalescingGroup(coalescingKey, now);
 
 		if (compatibleGroup) {
 			// Add to existing group
-			this.addToCoalescingGroup(compatibleGroup, taskItem, windowEnd, mustRunBy);
+			this._addToCoalescingGroup(compatibleGroup, taskItem, windowEnd, mustRunBy);
 		} else {
-			// Create new coalescing group
-			this.createCoalescingGroup(coalescingKey, taskItem, windowEnd, mustRunBy, multipleCallbacks, resolveAllPromises);
+			// Create new coalescing group using coalescingConfig
+			this._createCoalescingGroup(
+				coalescingKey,
+				taskItem,
+				windowEnd,
+				mustRunBy,
+				coalescingConfig.multipleCallbacks,
+				coalescingConfig.resolveAllPromises
+			);
 		}
 
-		return this.createTaskHandle(taskItem, callback);
+		return this._createTaskHandle(taskItem, callback);
 	}
 
 	/**
 	 * Finds a compatible coalescing group for a new task.
 	 * @private
+	 * @internal
 	 * @param {string} coalescingKey - The coalescing key
 	 * @param {number} now - Current timestamp
 	 * @param {number} windowEnd - End of new task's coalescing window
 	 * @param {number} mustRunBy - New task's mustRunBy deadline
 	 * @returns {Object|null} Compatible coalescing group or null
 	 */
-	findCompatibleCoalescingGroup(coalescingKey, now) {
+	_findCompatibleCoalescingGroup(coalescingKey, now) {
 		const groups = this.coalescingGroups.get(coalescingKey);
 		if (!groups) return null;
 
@@ -370,6 +657,7 @@ export class HoldMyTask extends EventEmitter {
 	/**
 	 * Creates a new coalescing group with a representative task in the main queue.
 	 * @private
+	 * @internal
 	 * @param {string} coalescingKey - The coalescing key
 	 * @param {Object} taskItem - The first task item for this group
 	 * @param {number} windowEnd - End of coalescing window
@@ -378,14 +666,14 @@ export class HoldMyTask extends EventEmitter {
 	 * @param {boolean} resolveAllPromises - Whether to resolve all promises with same result
 	 * @returns {Object} The created coalescing group
 	 */
-	createCoalescingGroup(coalescingKey, taskItem, windowEnd, mustRunBy, multipleCallbacks, resolveAllPromises) {
+	_createCoalescingGroup(coalescingKey, taskItem, windowEnd, mustRunBy, multipleCallbacks, resolveAllPromises) {
 		const representativeId = String(this.nextId++);
 		const groupId = String(this.nextGroupId++);
 
 		// Create representative task that will actually run
 		const representative = {
 			id: representativeId,
-			task: this.createCoalescingRepresentativeTask(coalescingKey, groupId),
+			task: this._createCoalescingRepresentativeTask(coalescingKey, groupId),
 			callback: null, // Representative handles its own completion
 			priority: taskItem.priority,
 			readyAt: taskItem.readyAt,
@@ -429,16 +717,16 @@ export class HoldMyTask extends EventEmitter {
 			if (this.options.smartScheduling) {
 				this.scheduleSmartTimeout();
 			} else {
-				this.scheduleNextTick();
+				this._scheduleNextTick();
 			}
 		}
-
 		return group;
 	}
 
 	/**
 	 * Adds a task to an existing coalescing group, updating the representative if needed.
 	 * @private
+	 * @internal
 	 * @param {Object} group - The existing coalescing group
 	 * @param {Object} taskItem - The new task item to add
 	 * @param {number} windowEnd - End of coalescing window
@@ -446,7 +734,7 @@ export class HoldMyTask extends EventEmitter {
 	 * @param {number} now - Current timestamp
 	 * @returns {void}
 	 */
-	addToCoalescingGroup(group, taskItem, windowEnd, mustRunBy) {
+	_addToCoalescingGroup(group, taskItem, windowEnd, mustRunBy) {
 		// Add task to group
 		group.tasks.set(taskItem.id, taskItem);
 
@@ -469,13 +757,13 @@ export class HoldMyTask extends EventEmitter {
 			representative.bypassDelay = taskItem.bypassDelay || representative.bypassDelay;
 
 			// Rebuild heaps to reflect updated representative
-			this.rebuildHeaps();
+			this._rebuildHeaps();
 
 			if (this.isActive) {
 				if (this.options.smartScheduling) {
 					this.scheduleSmartTimeout();
 				} else {
-					this.scheduleNextTick();
+					this._scheduleNextTick();
 				}
 			}
 		}
@@ -484,11 +772,12 @@ export class HoldMyTask extends EventEmitter {
 	/**
 	 * Creates the representative task function that manages coalesced task execution.
 	 * @private
+	 * @internal
 	 * @param {string} coalescingKey - The coalescing key
 	 * @param {string} groupId - The group ID
 	 * @returns {Function} The representative task function
 	 */
-	createCoalescingRepresentativeTask(coalescingKey, groupId) {
+	_createCoalescingRepresentativeTask(coalescingKey, groupId) {
 		return async (signal) => {
 			const groups = this.coalescingGroups.get(coalescingKey);
 			const group = groups?.find((g) => g.groupId === groupId);
@@ -502,16 +791,16 @@ export class HoldMyTask extends EventEmitter {
 				const result = await group.originalTask(signal);
 
 				// Handle callbacks/promises
-				this.resolveCoalescingGroup(group, null, result);
+				this._resolveCoalescingGroup(group, null, result);
 
 				return result;
 			} catch (error) {
 				// Handle errors for all tasks in group
-				this.resolveCoalescingGroup(group, error, null);
+				this._resolveCoalescingGroup(group, error, null);
 				throw error;
 			} finally {
 				// Clean up coalescing group
-				this.cleanupCoalescingGroup(coalescingKey, groupId);
+				this._cleanupCoalescingGroup(coalescingKey, groupId);
 			}
 		};
 	}
@@ -519,12 +808,13 @@ export class HoldMyTask extends EventEmitter {
 	/**
 	 * Resolves all callbacks/promises in a coalescing group.
 	 * @private
+	 * @internal
 	 * @param {Object} group - The coalescing group
 	 * @param {Error|null} error - Error if task failed
 	 * @param {*} result - Result if task succeeded
 	 * @returns {void}
 	 */
-	resolveCoalescingGroup(group, error, result) {
+	_resolveCoalescingGroup(group, error, result) {
 		if (group.multipleCallbacks) {
 			// Multiple callback mode - resolve all non-canceled tasks
 			for (const taskItem of group.tasks.values()) {
@@ -657,12 +947,13 @@ export class HoldMyTask extends EventEmitter {
 	/**
 	 * Cancels a specific task within a coalescing group.
 	 * @private
+	 * @internal
 	 * @param {string} taskId - ID of task to cancel
 	 * @param {string} coalescingKey - The coalescing key
 	 * @param {string} reason - Cancellation reason
 	 * @returns {void}
 	 */
-	cancelCoalescingTask(taskId, coalescingKey, reason) {
+	_cancelCoalescingTask(taskId, coalescingKey, reason) {
 		const groups = this.coalescingGroups.get(coalescingKey) || [];
 
 		for (const group of groups) {
@@ -690,9 +981,9 @@ export class HoldMyTask extends EventEmitter {
 			if (group.tasks.size === 0) {
 				const representative = this.tasks.get(group.representativeId);
 				if (representative) {
-					this.cancelTask(group.representativeId, "All coalesced tasks canceled");
+					this.cancel(group.representativeId, "All coalesced tasks canceled");
 				}
-				this.cleanupCoalescingGroup(coalescingKey, group.groupId);
+				this._cleanupCoalescingGroup(coalescingKey, group.groupId);
 			} else {
 				// Update latest task if needed
 				const remainingTasks = Array.from(group.tasks.values());
@@ -707,11 +998,12 @@ export class HoldMyTask extends EventEmitter {
 	/**
 	 * Cleans up a coalescing group after completion or cancellation.
 	 * @private
+	 * @internal
 	 * @param {string} coalescingKey - The coalescing key
 	 * @param {string} groupId - The group ID to clean up
 	 * @returns {void}
 	 */
-	cleanupCoalescingGroup(coalescingKey, groupId) {
+	_cleanupCoalescingGroup(coalescingKey, groupId) {
 		const groups = this.coalescingGroups.get(coalescingKey);
 		if (!groups) return;
 
@@ -733,9 +1025,10 @@ export class HoldMyTask extends EventEmitter {
 	/**
 	 * Rebuilds the heap structures to reflect updated priorities/timing.
 	 * @private
+	 * @internal
 	 * @returns {void}
 	 */
-	rebuildHeaps() {
+	_rebuildHeaps() {
 		// Rebuild pending heap
 		const pendingTasks = [...this.pendingHeap.heap];
 		this.pendingHeap = new MinHeap((a, b) => a.readyAt - b.readyAt);
@@ -758,18 +1051,19 @@ export class HoldMyTask extends EventEmitter {
 	/**
 	 * Creates a task handle for both regular and coalescing tasks.
 	 * @private
+	 * @internal
 	 * @param {Object} item - The task item
 	 * @param {Function|null} callback - Callback function
 	 * @returns {Promise|Object} Promise or task control object
 	 */
-	createTaskHandle(item, callback) {
+	_createTaskHandle(item, callback) {
 		const taskHandle = {
 			id: item.id,
 			cancel: (reason) => {
 				if (item.coalescingKey) {
-					this.cancelCoalescingTask(item.id, item.coalescingKey, reason || "Task canceled");
+					this._cancelCoalescingTask(item.id, item.coalescingKey, reason || "Task canceled");
 				} else {
-					this.cancelTask(item.id, reason || "Task canceled");
+					this.cancel(item.id, reason || "Task canceled");
 				}
 			},
 			status: () => item.status,
@@ -813,14 +1107,14 @@ export class HoldMyTask extends EventEmitter {
 	 * Cancels a pending task by ID.
 	 * @param {string} id - The task ID to cancel
 	 * @param {string} [reason="Task canceled"] - Reason for cancellation
-	 * @returns {void}
+	 * @returns {boolean} True if task was found and cancelled, false otherwise
 	 * @example
 	 * const task = queue.enqueue(() => longRunningTask());
-	 * queue.cancelTask(task.id, "User requested cancellation");
+	 * const cancelled = queue.cancel(task.id, "User requested cancellation");
 	 */
-	cancelTask(id, reason) {
+	cancel(id, reason) {
 		const item = this.tasks.get(id);
-		if (!item || item.status !== "pending") return;
+		if (!item || item.status !== "pending") return false;
 
 		item.status = "canceled";
 		item.finishedAt = this.now();
@@ -831,6 +1125,18 @@ export class HoldMyTask extends EventEmitter {
 		if (!item.callback && item.reject) {
 			item.reject(new Error(reason || "Task canceled"));
 		}
+
+		return true;
+	}
+
+	/**
+	 * Alias for cancel() method for backward compatibility.
+	 * @param {string|number} id - The task ID to cancel
+	 * @param {string} [reason="Task canceled"] - Reason for cancellation
+	 * @returns {boolean} True if task was found and cancelled, false otherwise
+	 */
+	cancelTask(id, reason) {
+		return this.cancel(id, reason);
 	}
 
 	/**
@@ -877,7 +1183,7 @@ export class HoldMyTask extends EventEmitter {
 			if (this.pendingHeap.size() > 0 || this.readyHeap.size() > 0) {
 				this.schedulerTick();
 			}
-			this.scheduleNextTick();
+			this._scheduleNextTick();
 		}
 	}
 
@@ -1000,8 +1306,9 @@ export class HoldMyTask extends EventEmitter {
 	 * Schedules the next scheduler tick based on when tasks become ready.
 	 * @returns {void}
 	 * @private
+	 * @internal
 	 */
-	scheduleNextTick() {
+	_scheduleNextTick() {
 		if (!this.isActive || this.destroyed) return;
 
 		this.clearTimers();
@@ -1045,7 +1352,7 @@ export class HoldMyTask extends EventEmitter {
 			if (task && task.status === "pending") {
 				// Check if task has expired before making it ready
 				if (task.expireAt && now >= task.expireAt) {
-					this.expireTask(task);
+					this._expireTask(task);
 				} else {
 					task.status = "ready";
 					this.readyHeap.push(task);
@@ -1057,7 +1364,7 @@ export class HoldMyTask extends EventEmitter {
 		// Start tasks up to concurrency limit
 		let hasWaitingTasks = false;
 		const currentTime = this.now();
-		const delay = this.lastCompletedPriority !== null ? this.options.delays[this.lastCompletedPriority] || 0 : 0;
+		const delay = this.lastCompletedPriority !== null ? (this.options.priorities[this.lastCompletedPriority]?.postDelay ?? 0) : 0;
 		const delayActive = delay > 0 && currentTime < this.nextAvailableTime;
 
 		while (this.running.size < this.options.concurrency && this.readyHeap.size() > 0) {
@@ -1067,7 +1374,7 @@ export class HoldMyTask extends EventEmitter {
 			// Check if task has expired before starting it
 			if (task.expireAt && currentTime >= task.expireAt) {
 				this.readyHeap.pop(); // Remove expired task from heap
-				this.expireTask(task);
+				this._expireTask(task);
 				continue; // Check next task
 			}
 
@@ -1075,7 +1382,7 @@ export class HoldMyTask extends EventEmitter {
 
 			if (canStart) {
 				this.readyHeap.pop(); // Remove it from heap
-				this.startTask(task);
+				this._startTask(task);
 			} else {
 				// Can't start due to delay - check if there are any bypass tasks in the heap
 				const heapArray = this.readyHeap.heap.slice(); // Copy heap array
@@ -1092,7 +1399,7 @@ export class HoldMyTask extends EventEmitter {
 						for (const t of remainingTasks) {
 							this.readyHeap.push(t);
 						}
-						this.expireTask(bypassTask);
+						this._expireTask(bypassTask);
 						// Update heapArray for next iteration
 						heapArray.splice(i, 1);
 						i--; // Adjust index since we removed an item
@@ -1108,7 +1415,7 @@ export class HoldMyTask extends EventEmitter {
 						for (const t of remainingTasks) {
 							this.readyHeap.push(t);
 						}
-						this.startTask(bypassTask);
+						this._startTask(bypassTask);
 						break;
 					}
 				}
@@ -1124,7 +1431,7 @@ export class HoldMyTask extends EventEmitter {
 		// Schedule next tick if there are pending tasks or tasks that might become available
 		// Note: For smart scheduling, this is handled by runScheduler calling scheduleSmartTimeout
 		if (!this.options.smartScheduling && (this.pendingHeap.size() > 0 || this.readyHeap.size() > 0 || hasWaitingTasks)) {
-			this.scheduleNextTick();
+			this._scheduleNextTick();
 		}
 	}
 
@@ -1133,8 +1440,9 @@ export class HoldMyTask extends EventEmitter {
 	 * @param {Object} item - The expired task item
 	 * @returns {void}
 	 * @private
+	 * @internal
 	 */
-	expireTask(item) {
+	_expireTask(item) {
 		if (item.status === "expired" || item.status === "canceled" || item.status === "completed") {
 			return; // Already handled
 		}
@@ -1167,8 +1475,9 @@ export class HoldMyTask extends EventEmitter {
 	 * @param {Object} item - The task item to execute
 	 * @returns {Promise<void>}
 	 * @private
+	 * @internal
 	 */
-	async startTask(item) {
+	async _startTask(item) {
 		if (item.status !== "ready") return;
 
 		// For promise API, check if signal is already aborted
@@ -1270,8 +1579,8 @@ export class HoldMyTask extends EventEmitter {
 			// Update delay tracking after task completion
 			const completedPriority = item.priority;
 			const taskDelay = item.delay;
-			const globalDelay = this.options.delays[completedPriority] || 0;
-			const delay = taskDelay !== undefined ? taskDelay : globalDelay;
+			const priorityDelay = this.options.priorities[completedPriority]?.postDelay ?? 0;
+			const delay = taskDelay !== undefined ? taskDelay : priorityDelay;
 			if (delay > 0) {
 				this.lastCompletedPriority = completedPriority;
 				this.nextAvailableTime = this.now() + delay;
@@ -1336,7 +1645,7 @@ export class HoldMyTask extends EventEmitter {
 
 		// Check if we have ready tasks that can run immediately
 		if (this.readyHeap.size() > 0 && this.running.size < this.options.concurrency) {
-			const delay = this.lastCompletedPriority !== null ? this.options.delays[this.lastCompletedPriority] || 0 : 0;
+			const delay = this.lastCompletedPriority !== null ? (this.options.priorities[this.lastCompletedPriority]?.postDelay ?? 0) : 0;
 			const delayActive = delay > 0 && now < this.nextAvailableTime;
 
 			if (!delayActive) {
@@ -1445,5 +1754,305 @@ export class HoldMyTask extends EventEmitter {
 			clearInterval(this.healingInterval);
 			this.healingInterval = null;
 		}
+	}
+
+	/**
+	 * Configure coalescing settings for specific keys dynamically.
+	 * @param {string} coalescingKey - The coalescing key to configure
+	 * @param {Object} config - Configuration for this key
+	 * @param {number} [config.windowDuration] - Window duration in milliseconds for this key
+	 * @param {number} [config.maxDelay] - Maximum delay in milliseconds for this key
+	 * @param {number} [config.postDelay] - Post-completion delay in milliseconds for this key
+	 * @param {number} [config.startDelay] - Pre-execution delay in milliseconds for this key
+	 * @param {number} [config.delay] - DEPRECATED: Use postDelay instead
+	 * @param {number} [config.start] - DEPRECATED: Use startDelay instead
+	 * @param {boolean} [config.multipleCallbacks] - Whether to call multiple callbacks for this key
+	 * @param {boolean} [config.resolveAllPromises] - Whether to resolve all promises for this key
+	 * @returns {void}
+	 *
+	 * @example
+	 * // Configure specific keys after queue creation
+	 * queue.configureCoalescingKey('ui.update', {
+	 *   windowDuration: 100,
+	 *   maxDelay: 500,
+	 *   postDelay: 25,
+	 *   startDelay: 0
+	 * });
+	 *
+	 * queue.configureCoalescingKey('api.batch', {
+	 *   windowDuration: 1000,
+	 *   maxDelay: 5000,
+	 *   postDelay: 100,
+	 *   startDelay: 200,
+	 *   resolveAllPromises: false
+	 * });
+	 */
+	configureCoalescingKey(coalescingKey, config) {
+		if (typeof coalescingKey !== "string") {
+			const error = new Error("coalescingKey must be a string");
+			setImmediate(() => this.emit("error", { error, method: "configureCoalescingKey", coalescingKey, config }));
+			return;
+		}
+		if (typeof config !== "object" || config === null) {
+			const error = new Error("config must be an object");
+			setImmediate(() => this.emit("error", { error, method: "configureCoalescingKey", coalescingKey, config }));
+			return;
+		}
+
+		// Validate configuration options (accept both old and new property names)
+		const validKeys = [
+			"windowDuration",
+			"maxDelay",
+			"delay",
+			"start",
+			"postDelay",
+			"startDelay",
+			"multipleCallbacks",
+			"resolveAllPromises"
+		];
+		const invalidKeys = Object.keys(config).filter((key) => !validKeys.includes(key));
+		if (invalidKeys.length > 0) {
+			const error = new Error(`Invalid config keys: ${invalidKeys.join(", ")}. Valid keys: ${validKeys.join(", ")}`);
+			setImmediate(() => this.emit("error", { error, method: "configureCoalescingKey", coalescingKey, config, invalidKeys }));
+			return;
+		}
+
+		// Transform old property names to new ones for backwards compatibility
+		const transformedConfig = HoldMyTask._transformDelayProperties(config, this);
+
+		// Merge with existing configuration for this key
+		this.options.coalescing.keys[coalescingKey] = {
+			...this.options.coalescing.keys[coalescingKey],
+			...transformedConfig
+		};
+	}
+
+	/**
+	 * Get the effective coalescing configuration for a specific key.
+	 * @param {string} coalescingKey - The coalescing key to get configuration for
+	 * @param {Object} [taskOptions={}] - Task-level options that may override key configuration
+	 * @returns {Object} The effective configuration for this key
+	 *
+	 * @example
+	 * // Get effective configuration for a key
+	 * const config = queue.getCoalescingConfig('ui.update');
+	 * console.log(`UI updates coalesce within ${config.windowDuration}ms with ${config.postDelay}ms post-completion delay`);
+	 *
+	 * // Check with task-level overrides
+	 * const effectiveConfig = queue.getCoalescingConfig('ui.update', {
+	 *   coalescingWindowDuration: 50,
+	 *   delay: 30  // Still accepts old property names for backwards compatibility
+	 * });
+	 */
+	getCoalescingConfig(coalescingKey, taskOptions = {}) {
+		const keyConfig = (this.options.coalescing.keys && this.options.coalescing.keys[coalescingKey]) || {};
+		const defaults = this.options.coalescing.defaults;
+		const priorityConfig = this.getPriorityConfig(taskOptions.priority ?? this.options.defaultPriority);
+
+		const postDelay = taskOptions.delay ?? keyConfig.postDelay ?? priorityConfig.postDelay ?? defaults.postDelay;
+		const startDelay = taskOptions.start ?? keyConfig.startDelay ?? priorityConfig.startDelay ?? defaults.startDelay;
+
+		return {
+			windowDuration: taskOptions.coalescingWindowDuration ?? keyConfig.windowDuration ?? defaults.windowDuration,
+			maxDelay: taskOptions.coalescingMaxDelay ?? keyConfig.maxDelay ?? defaults.maxDelay,
+			// New clear property names
+			postDelay,
+			startDelay,
+			// Old property names for backwards compatibility
+			delay: postDelay,
+			start: startDelay,
+			multipleCallbacks: taskOptions.coalescingMultipleCallbacks ?? keyConfig.multipleCallbacks ?? defaults.multipleCallbacks,
+			resolveAllPromises: taskOptions.coalescingResolveAllPromises ?? keyConfig.resolveAllPromises ?? defaults.resolveAllPromises
+		};
+	}
+
+	/**
+	 * Get all configured coalescing keys and their configurations.
+	 * @returns {Object} Map of coalescingKey to configuration
+	 *
+	 * @example
+	 * // See all configured coalescing keys
+	 * const allConfigs = queue.getCoalescingConfigurations();
+	 * Object.entries(allConfigs).forEach(([key, config]) => {
+	 *   console.log(`${key}: ${config.windowDuration}ms window, ${config.maxDelay}ms max delay, ${config.postDelay}ms post-completion delay, ${config.startDelay}ms pre-execution delay`);
+	 * });
+	 */
+	getCoalescingConfigurations() {
+		const result = {};
+		for (const key of Object.keys(this.options.coalescing.keys)) {
+			result[key] = this.getCoalescingConfig(key);
+		}
+		return result;
+	}
+
+	/**
+	 * Configure default settings for specific priorities dynamically.
+	 * @param {number} priority - The priority level to configure
+	 * @param {Object} config - Configuration for this priority
+	 * @param {number} [config.postDelay] - Default post-completion delay in milliseconds for this priority
+	 * @param {number} [config.startDelay] - Default pre-execution delay in milliseconds for this priority
+	 * @param {number} [config.delay] - DEPRECATED: Use postDelay instead
+	 * @param {number} [config.start] - DEPRECATED: Use startDelay instead
+	 * @returns {void}
+	 *
+	 * @example
+	 * // Configure priority defaults after queue creation
+	 * queue.configurePriority(1, {
+	 *   postDelay: 100,  // High priority tasks have 100ms delay after completion
+	 *   startDelay: 0    // High priority tasks start immediately
+	 * });
+	 *
+	 * queue.configurePriority(3, {
+	 *   postDelay: 0,    // Low priority tasks have no delay after completion
+	 *   startDelay: 200  // Low priority tasks wait 200ms before starting
+	 * });
+	 */
+	configurePriority(priority, config) {
+		if (typeof priority !== "number") {
+			const error = new Error("priority must be a number");
+			setImmediate(() => this.emit("error", { error, method: "configurePriority", priority, config }));
+			return;
+		}
+		if (typeof config !== "object" || config === null) {
+			const error = new Error("config must be an object");
+			setImmediate(() => this.emit("error", { error, method: "configurePriority", priority, config }));
+			return;
+		}
+
+		// Validate configuration options (accept both old and new property names)
+		const validKeys = ["delay", "start", "postDelay", "startDelay"];
+		const invalidKeys = Object.keys(config).filter((key) => !validKeys.includes(key));
+		if (invalidKeys.length > 0) {
+			const error = new Error(`Invalid config keys: ${invalidKeys.join(", ")}. Valid keys: ${validKeys.join(", ")}`);
+			setImmediate(() => this.emit("error", { error, method: "configurePriority", priority, config, invalidKeys }));
+			return;
+		}
+
+		// Transform old property names to new ones for backwards compatibility
+		const transformedConfig = HoldMyTask._transformDelayProperties(config, this);
+
+		// Merge with existing configuration for this priority
+		this.options.priorities[priority] = {
+			...this.options.priorities[priority],
+			...transformedConfig
+		};
+	}
+
+	/**
+	 * Get the effective configuration for a specific priority.
+	 * @param {number} priority - The priority level to get configuration for
+	 * @param {Object} [taskOptions={}] - Task-level options that may override priority configuration
+	 * @returns {Object} The effective configuration for this priority
+	 *
+	 * @example
+	 * // Get effective configuration for a priority
+	 * const config = queue.getPriorityConfig(1);
+	 * console.log(`Priority 1 tasks: ${config.delay}ms delay, ${config.start}ms start delay`);
+	 *
+	 * // Check with task-level overrides
+	 * const effectiveConfig = queue.getPriorityConfig(1, {
+	 *   delay: 50,
+	 *   start: 10
+	 * });
+	 */
+	getPriorityConfig(priority, taskOptions = {}) {
+		const priorityConfig = this.options.priorities[priority] || {};
+
+		const postDelay = taskOptions.delay ?? priorityConfig.postDelay;
+		const startDelay = taskOptions.start ?? priorityConfig.startDelay;
+
+		return {
+			// New clear property names
+			postDelay,
+			startDelay,
+			// Old property names for backwards compatibility
+			delay: postDelay,
+			start: startDelay
+		};
+	}
+
+	/**
+	 * Get all configured priorities and their configurations.
+	 * @returns {Object} Map of priority to configuration
+	 *
+	 * @example
+	 * // See all configured priorities
+	 * const allConfigs = queue.getPriorityConfigurations();
+	 * Object.entries(allConfigs).forEach(([priority, config]) => {
+	 *   console.log(`Priority ${priority}: ${config.delay}ms delay, ${config.start}ms start delay`);
+	 * });
+	 */
+	getPriorityConfigurations() {
+		const result = {};
+		for (const priority of Object.keys(this.options.priorities)) {
+			result[priority] = this.getPriorityConfig(parseInt(priority));
+		}
+		return result;
+	}
+
+	/**
+	 * Alias for destroy() method for common queue system naming.
+	 * @returns {void}
+	 */
+	shutdown() {
+		return this.destroy();
+	}
+
+	/**
+	 * Alias for enqueue() method for common queue system naming.
+	 * @param {Function} task - The task function to execute
+	 * @param {Function|Object} optionsOrCallback - Callback function or options object
+	 * @param {Object} options - Task options (if callback provided as second parameter)
+	 * @returns {Promise|TaskHandle} Promise if no callback provided, TaskHandle otherwise
+	 */
+	schedule(task, optionsOrCallback, options = {}) {
+		return this.enqueue(task, optionsOrCallback, options);
+	}
+
+	/**
+	 * Alias for enqueue() method for common queue system naming.
+	 * @param {Function} task - The task function to execute
+	 * @param {Function|Object} optionsOrCallback - Callback function or options object
+	 * @param {Object} options - Task options (if callback provided as second parameter)
+	 * @returns {Promise|TaskHandle} Promise if no callback provided, TaskHandle otherwise
+	 */
+	add(task, optionsOrCallback, options = {}) {
+		return this.enqueue(task, optionsOrCallback, options);
+	}
+
+	/**
+	 * Find a task by its ID.
+	 * @param {string|number} id - The task ID to find
+	 * @returns {Object|null} Task object if found, null otherwise
+	 */
+	get(id) {
+		return this.tasks.get(String(id)) || null;
+	}
+
+	/**
+	 * Check if a task with the given ID exists.
+	 * @param {string|number} id - The task ID to check
+	 * @returns {boolean} True if task exists, false otherwise
+	 */
+	has(id) {
+		return this.tasks.has(String(id));
+	}
+
+	/**
+	 * Alias for get() method for backward compatibility.
+	 * @param {string|number} id - The task ID to find
+	 * @returns {Object|null} Task object if found, null otherwise
+	 */
+	getTask(id) {
+		return this.get(id);
+	}
+
+	/**
+	 * Alias for has() method for backward compatibility.
+	 * @param {string|number} id - The task ID to check
+	 * @returns {boolean} True if task exists, false otherwise
+	 */
+	hasTask(id) {
+		return this.has(id);
 	}
 }

@@ -46,7 +46,8 @@ class ProblematicDeviceController {
 	}
 }
 
-// SOLUTION 1: Task-Specific Accumulation
+// SOLUTION 1: Task-Specific Accumulation (Reference implementation - not used in demo)
+// eslint-disable-next-line no-unused-vars
 class TaskAccumulatingController {
 	constructor() {
 		this.queue = new HoldMyTask({
