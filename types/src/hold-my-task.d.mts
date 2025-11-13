@@ -356,6 +356,69 @@ export class HoldMyTask extends EventEmitter<[never]> {
      */
     inflight(): number;
     /**
+     * Gets information about a coalescing group by key and group ID.
+     * @param {string} coalescingKey - The coalescing key
+     * @param {string} [groupId] - Optional group ID. If omitted, returns all groups for the key
+     * @returns {Object|Array|null} Group info object, array of groups, or null if not found
+     * @example
+     * // Get all groups for a coalescing key
+     * const groups = queue.getCoalescingGroup('ui.update');
+     *
+     * // Get specific group by ID
+     * const group = queue.getCoalescingGroup('ui.update', '1');
+     * console.log(group.tasks.size); // Number of tasks in group
+     *
+     * // Access individual task metadata
+     * for (const [taskId, task] of group.tasks) {
+     *   console.log(`Task ${taskId}:`, task.metadata);
+     * }
+     */
+    getCoalescingGroup(coalescingKey: string, groupId?: string): any | any[] | null;
+    /**
+     * Gets metadata for all tasks in a coalescing group.
+     * @param {string} coalescingKey - The coalescing key
+     * @param {string} [groupId] - Optional group ID. If omitted, returns metadata from all groups for the key
+     * @returns {Array} Array of metadata objects with task IDs
+     * @example
+     * // Get metadata from all groups for a key
+     * const allMetadata = queue.getCoalescingGroupMetadata('ui.update');
+     *
+     * // Get metadata from specific group
+     * const groupMetadata = queue.getCoalescingGroupMetadata('ui.update', '1');
+     *
+     * // Example output:
+     * // [
+     * //   { taskId: '123', metadata: { userId: 100, action: 'save' } },
+     * //   { taskId: '124', metadata: { userId: 200, action: 'delete' } }
+     * // ]
+     */
+    getCoalescingGroupMetadata(coalescingKey: string, groupId?: string): any[];
+    /**
+     * Gets a summary of all active coalescing groups.
+     * @returns {Object} Summary object with coalescing key stats
+     * @example
+     * const summary = queue.getCoalescingGroupsSummary();
+     * console.log(summary);
+     * // {
+     * //   'ui.update': { groupCount: 2, totalTasks: 5 },
+     * //   'api.batch': { groupCount: 1, totalTasks: 3 }
+     * // }
+     */
+    getCoalescingGroupsSummary(): any;
+    /**
+     * Finds the coalescing group that contains a specific task ID.
+     * @param {string|number} taskId - The task ID to search for
+     * @returns {Object|null} Group information including the task's metadata, or null if not found
+     * @example
+     * const groupInfo = queue.findCoalescingGroupByTaskId('123');
+     * if (groupInfo) {
+     *   console.log('Task is in group:', groupInfo.groupId);
+     *   console.log('Task metadata:', groupInfo.task.metadata);
+     *   console.log('Other tasks in group:', groupInfo.groupTasks.length);
+     * }
+     */
+    findCoalescingGroupByTaskId(taskId: string | number): any | null;
+    /**
      * Destroys the queue, canceling all tasks and stopping the scheduler.
      * Once destroyed, the queue cannot be reused.
      * @returns {void}

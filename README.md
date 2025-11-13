@@ -304,7 +304,7 @@ Adds a task to the queue.
 - `start` (number) - Milliseconds from now when the task should be ready to run (convenience for timestamp calculation)
 - `coalescingKey` (string) - Tasks with the same coalescing key can be merged for efficiency
 - `mustRunBy` (number) - Absolute timestamp by which the task must execute (overrides coalescing delays)
-- `metadata` (any) - Custom metadata
+- `metadata` (any) - Custom metadata attached to the task. Individual metadata is always directly accessible via the returned task handle
 
 **Returns:** TaskHandle object with:
 
@@ -315,8 +315,50 @@ Adds a task to the queue.
 - `finishedAt` - When task finished
 - `result` - Task result (if completed)
 - `error` - Task error (if failed)
+- `metadata` - Custom metadata attached to this task
+- `coalescingInfo` - Coalescing group information (null for non-coalesced tasks)
 
 When `callback` is omitted, returns a Promise that resolves with the task result or rejects with an error.
+
+#### Accessing Task Metadata
+
+Every task handle provides direct access to its metadata and coalescing information:
+
+```javascript
+// Create a task with metadata
+const task = queue.enqueue(
+	async () => {
+		return "task completed";
+	},
+	{
+		metadata: { userId: 123, action: "save", document: "report.pdf" },
+		coalescingKey: "user-actions"
+	}
+);
+
+// Direct access to metadata - works for both regular and coalesced tasks
+console.log(task.metadata);
+// Output: { userId: 123, action: 'save', document: 'report.pdf' }
+
+// For coalesced tasks, get information about the coalescing group
+if (task.coalescingInfo) {
+	console.log("Coalescing key:", task.coalescingInfo.coalescingKey);
+	console.log("Group size:", task.coalescingInfo.taskCount);
+	console.log("All task metadata in group:", task.coalescingInfo.allTaskMetadata);
+}
+
+// Works the same way with Promise API
+const result = await task;
+console.log("Still accessible after completion:", task.metadata);
+```
+
+**Key Points:**
+
+- `task.metadata` - Returns the original metadata you attached to the task
+- `task.coalescingInfo` - Returns coalescing group details (null for non-coalesced tasks)
+- Available on both callback-style task handles and Promise-style task handles
+- Accessible before, during, and after task execution
+- For coalesced tasks, each task retains its individual metadata
 
 #### Method Aliases
 
@@ -387,6 +429,56 @@ queue.enqueue(task2, { id: "duplicate" }); // throws: Task ID "duplicate" alread
 - `getPriorityConfigurations()` - Get all configured priorities and their settings
 - `getCoalescingConfig(coalescingKey, taskOptions?)` - Get effective configuration for a specific coalescing key
 - `getCoalescingConfigurations()` - Get all configured coalescing keys and their settings
+
+#### Coalescing Group Inspection Methods
+
+- `getCoalescingGroup(coalescingKey, groupId?)` - Get detailed information about coalescing groups
+  - `coalescingKey` (string) - The coalescing key to query
+  - `groupId` (string, optional) - Specific group ID, or omit to get all groups for the key
+  - Returns group info with task details and metadata
+- `getCoalescingGroupMetadata(coalescingKey, groupId?)` - Get metadata from all tasks in coalescing groups
+  - Returns array of `{ taskId, groupId, metadata }` objects
+- `getCoalescingGroupsSummary()` - Get summary of all active coalescing groups
+  - Returns object with `{ [coalescingKey]: { groupCount, totalTasks } }`
+- `findCoalescingGroupByTaskId(taskId)` - Find which coalescing group contains a specific task
+  - Returns group info including the task's metadata and other group members
+
+**Note:** For most use cases, the direct `task.metadata` and `task.coalescingInfo` properties provide easier access to task information. The coalescing group inspection methods are useful for bulk operations, monitoring, debugging, or when you need to query groups by coalescing key without having individual task references.
+
+```javascript
+// Example: Direct access to task metadata and coalescing info
+const task1 = queue.enqueue(async () => "result", {
+	coalescingKey: "user-action",
+	metadata: { userId: 123, action: "save" }
+});
+
+const task2 = queue.enqueue(async () => "result", {
+	coalescingKey: "user-action",
+	metadata: { userId: 456, action: "delete" }
+});
+
+// Direct access - no additional API calls needed!
+console.log("Task 1 metadata:", task1.metadata); // { userId: 123, action: 'save' }
+console.log("Task 2 metadata:", task2.metadata); // { userId: 456, action: 'delete' }
+
+// Access coalescing information directly from the task
+console.log("Coalescing info:", task1.coalescingInfo);
+// {
+//   coalescingKey: 'user-action',
+//   groupId: '1',
+//   representativeId: '3',
+//   taskCount: 2,
+//   allTaskMetadata: [
+//     { id: '1', metadata: { userId: 123, action: 'save' } },
+//     { id: '2', metadata: { userId: 456, action: 'delete' } }
+//   ]
+// }
+
+// Advanced: Use inspection methods for bulk operations
+const metadata = queue.getCoalescingGroupMetadata("user-action");
+const groupInfo = queue.getCoalescingGroup("user-action");
+const taskGroup = queue.findCoalescingGroupByTaskId(task1.id);
+```
 
 ### Events
 

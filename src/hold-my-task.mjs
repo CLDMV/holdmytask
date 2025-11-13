@@ -519,6 +519,12 @@ export class HoldMyTask extends EventEmitter {
 			},
 			get error() {
 				return tasks.get(id)?.error;
+			},
+			get metadata() {
+				return tasks.get(id)?.metadata;
+			},
+			get coalescingInfo() {
+				return null; // Regular tasks don't have coalescing info
 			}
 		};
 
@@ -568,6 +574,17 @@ export class HoldMyTask extends EventEmitter {
 					const currentItem = this.tasks.get(id);
 					return currentItem ? currentItem.error : promise._error;
 				},
+				enumerable: true
+			});
+			Object.defineProperty(promise, "metadata", {
+				get: () => {
+					const currentItem = this.tasks.get(id);
+					return currentItem ? currentItem.metadata : undefined;
+				},
+				enumerable: true
+			});
+			Object.defineProperty(promise, "coalescingInfo", {
+				get: () => null, // Regular tasks don't have coalescing info
 				enumerable: true
 			});
 
@@ -1110,6 +1127,27 @@ export class HoldMyTask extends EventEmitter {
 			},
 			get error() {
 				return item.error;
+			},
+			get metadata() {
+				// For coalescing tasks, get metadata from coalescing group
+				if (item.coalescingKey) {
+					const groupInfo = this.findCoalescingGroupByTaskId(item.id);
+					return groupInfo ? groupInfo.task.metadata : item.metadata;
+				}
+				return item.metadata;
+			},
+			get coalescingInfo() {
+				if (!item.coalescingKey) {
+					return null;
+				}
+				const groupInfo = this.findCoalescingGroupByTaskId(item.id);
+				return groupInfo ? {
+					coalescingKey: groupInfo.coalescingKey,
+					groupId: groupInfo.groupId,
+					representativeId: groupInfo.representativeId,
+					taskCount: groupInfo.groupTasks.length,
+					allTaskMetadata: groupInfo.groupTasks.map(t => ({ id: t.id, metadata: t.metadata }))
+				} : null;
 			}
 		};
 
@@ -1141,6 +1179,33 @@ export class HoldMyTask extends EventEmitter {
 			});
 			Object.defineProperty(promise, "error", {
 				get: () => (promise._error !== undefined ? promise._error : item.error),
+				enumerable: true
+			});
+			Object.defineProperty(promise, "metadata", {
+				get: () => {
+					// For coalescing tasks, get metadata from coalescing group
+					if (item.coalescingKey) {
+						const groupInfo = this.findCoalescingGroupByTaskId(item.id);
+						return groupInfo ? groupInfo.task.metadata : item.metadata;
+					}
+					return item.metadata;
+				},
+				enumerable: true
+			});
+			Object.defineProperty(promise, "coalescingInfo", {
+				get: () => {
+					if (!item.coalescingKey) {
+						return null;
+					}
+					const groupInfo = this.findCoalescingGroupByTaskId(item.id);
+					return groupInfo ? {
+						coalescingKey: groupInfo.coalescingKey,
+						groupId: groupInfo.groupId,
+						representativeId: groupInfo.representativeId,
+						taskCount: groupInfo.groupTasks.length,
+						allTaskMetadata: groupInfo.groupTasks.map(t => ({ id: t.id, metadata: t.metadata }))
+					} : null;
+				},
 				enumerable: true
 			});
 
@@ -1322,6 +1387,181 @@ export class HoldMyTask extends EventEmitter {
 	 */
 	inflight() {
 		return this.running.size;
+	}
+
+	/**
+	 * Gets information about a coalescing group by key and group ID.
+	 * @param {string} coalescingKey - The coalescing key
+	 * @param {string} [groupId] - Optional group ID. If omitted, returns all groups for the key
+	 * @returns {Object|Array|null} Group info object, array of groups, or null if not found
+	 * @example
+	 * // Get all groups for a coalescing key
+	 * const groups = queue.getCoalescingGroup('ui.update');
+	 * 
+	 * // Get specific group by ID
+	 * const group = queue.getCoalescingGroup('ui.update', '1');
+	 * console.log(group.tasks.size); // Number of tasks in group
+	 * 
+	 * // Access individual task metadata
+	 * for (const [taskId, task] of group.tasks) {
+	 *   console.log(`Task ${taskId}:`, task.metadata);
+	 * }
+	 */
+	getCoalescingGroup(coalescingKey, groupId = null) {
+		const groups = this.coalescingGroups.get(coalescingKey);
+		if (!groups || groups.length === 0) {
+			return null;
+		}
+
+		if (groupId === null) {
+			// Return all groups for the key
+			return groups.map(group => ({
+				coalescingKey: group.coalescingKey,
+				groupId: group.groupId,
+				representativeId: group.representativeId,
+				windowEnd: group.windowEnd,
+				mustRunBy: group.mustRunBy,
+				taskCount: group.tasks.size,
+				tasks: Array.from(group.tasks.entries()).map(([id, task]) => ({
+					id,
+					metadata: task.metadata,
+					status: task.status,
+					priority: task.priority,
+					readyAt: task.readyAt,
+					coalescingKey: task.coalescingKey
+				}))
+			}));
+		}
+
+		// Find specific group by ID
+		const group = groups.find(g => g.groupId === groupId);
+		if (!group) {
+			return null;
+		}
+
+		return {
+			coalescingKey: group.coalescingKey,
+			groupId: group.groupId,
+			representativeId: group.representativeId,
+			windowEnd: group.windowEnd,
+			mustRunBy: group.mustRunBy,
+			taskCount: group.tasks.size,
+			tasks: Array.from(group.tasks.entries()).map(([id, task]) => ({
+				id,
+				metadata: task.metadata,
+				status: task.status,
+				priority: task.priority,
+				readyAt: task.readyAt,
+				coalescingKey: task.coalescingKey
+			}))
+		};
+	}
+
+	/**
+	 * Gets metadata for all tasks in a coalescing group.
+	 * @param {string} coalescingKey - The coalescing key
+	 * @param {string} [groupId] - Optional group ID. If omitted, returns metadata from all groups for the key
+	 * @returns {Array} Array of metadata objects with task IDs
+	 * @example
+	 * // Get metadata from all groups for a key
+	 * const allMetadata = queue.getCoalescingGroupMetadata('ui.update');
+	 * 
+	 * // Get metadata from specific group
+	 * const groupMetadata = queue.getCoalescingGroupMetadata('ui.update', '1');
+	 * 
+	 * // Example output:
+	 * // [
+	 * //   { taskId: '123', metadata: { userId: 100, action: 'save' } },
+	 * //   { taskId: '124', metadata: { userId: 200, action: 'delete' } }
+	 * // ]
+	 */
+	getCoalescingGroupMetadata(coalescingKey, groupId = null) {
+		const groups = this.coalescingGroups.get(coalescingKey);
+		if (!groups || groups.length === 0) {
+			return [];
+		}
+
+		const targetGroups = groupId ? groups.filter(g => g.groupId === groupId) : groups;
+		const metadata = [];
+
+		for (const group of targetGroups) {
+			for (const [taskId, task] of group.tasks) {
+				metadata.push({
+					taskId,
+					groupId: group.groupId,
+					metadata: task.metadata
+				});
+			}
+		}
+
+		return metadata;
+	}
+
+	/**
+	 * Gets a summary of all active coalescing groups.
+	 * @returns {Object} Summary object with coalescing key stats
+	 * @example
+	 * const summary = queue.getCoalescingGroupsSummary();
+	 * console.log(summary);
+	 * // {
+	 * //   'ui.update': { groupCount: 2, totalTasks: 5 },
+	 * //   'api.batch': { groupCount: 1, totalTasks: 3 }
+	 * // }
+	 */
+	getCoalescingGroupsSummary() {
+		const summary = {};
+
+		for (const [coalescingKey, groups] of this.coalescingGroups) {
+			const totalTasks = groups.reduce((sum, group) => sum + group.tasks.size, 0);
+			summary[coalescingKey] = {
+				groupCount: groups.length,
+				totalTasks
+			};
+		}
+
+		return summary;
+	}
+
+	/**
+	 * Finds the coalescing group that contains a specific task ID.
+	 * @param {string|number} taskId - The task ID to search for
+	 * @returns {Object|null} Group information including the task's metadata, or null if not found
+	 * @example
+	 * const groupInfo = queue.findCoalescingGroupByTaskId('123');
+	 * if (groupInfo) {
+	 *   console.log('Task is in group:', groupInfo.groupId);
+	 *   console.log('Task metadata:', groupInfo.task.metadata);
+	 *   console.log('Other tasks in group:', groupInfo.groupTasks.length);
+	 * }
+	 */
+	findCoalescingGroupByTaskId(taskId) {
+		for (const [coalescingKey, groups] of this.coalescingGroups) {
+			for (const group of groups) {
+				const task = group.tasks.get(taskId);
+				if (task) {
+					return {
+						coalescingKey,
+						groupId: group.groupId,
+						representativeId: group.representativeId,
+						windowEnd: group.windowEnd,
+						mustRunBy: group.mustRunBy,
+						task: {
+							id: taskId,
+							metadata: task.metadata,
+							status: task.status,
+							priority: task.priority,
+							readyAt: task.readyAt
+						},
+						groupTasks: Array.from(group.tasks.entries()).map(([id, t]) => ({
+							id,
+							metadata: t.metadata,
+							status: t.status
+						}))
+					};
+				}
+			}
+		}
+		return null;
 	}
 
 	/**
