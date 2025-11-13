@@ -529,15 +529,47 @@ export class HoldMyTask extends EventEmitter {
 				item.reject = reject;
 			});
 
-			// Attach task handle properties to the promise with live getters
-			const tasksRef = this.tasks;
+			// Store promise reference on item so we can update properties when task completes
+			item.promise = promise;
+
+			// Attach task handle properties to the promise with cached fallback getters
 			Object.defineProperty(promise, "id", { value: id, enumerable: true });
 			Object.defineProperty(promise, "cancel", { value: (reason) => this.cancel(id, reason), enumerable: true });
-			Object.defineProperty(promise, "status", { value: () => tasksRef.get(id)?.status ?? "canceled", enumerable: true });
-			Object.defineProperty(promise, "startedAt", { get: () => tasksRef.get(id)?.startedAt, enumerable: true });
-			Object.defineProperty(promise, "finishedAt", { get: () => tasksRef.get(id)?.finishedAt, enumerable: true });
-			Object.defineProperty(promise, "result", { get: () => tasksRef.get(id)?.result, enumerable: true });
-			Object.defineProperty(promise, "error", { get: () => tasksRef.get(id)?.error, enumerable: true });
+			Object.defineProperty(promise, "status", {
+				value: () => {
+					const currentItem = this.tasks.get(id);
+					return currentItem ? currentItem.status : (promise._status ?? "canceled");
+				},
+				enumerable: true
+			});
+			Object.defineProperty(promise, "startedAt", {
+				get: () => {
+					const currentItem = this.tasks.get(id);
+					return currentItem ? currentItem.startedAt : promise._startedAt;
+				},
+				enumerable: true
+			});
+			Object.defineProperty(promise, "finishedAt", {
+				get: () => {
+					const currentItem = this.tasks.get(id);
+					return currentItem ? currentItem.finishedAt : promise._finishedAt;
+				},
+				enumerable: true
+			});
+			Object.defineProperty(promise, "result", {
+				get: () => {
+					const currentItem = this.tasks.get(id);
+					return currentItem ? currentItem.result : promise._result;
+				},
+				enumerable: true
+			});
+			Object.defineProperty(promise, "error", {
+				get: () => {
+					const currentItem = this.tasks.get(id);
+					return currentItem ? currentItem.error : promise._error;
+				},
+				enumerable: true
+			});
 
 			return promise;
 		}
@@ -1088,14 +1120,29 @@ export class HoldMyTask extends EventEmitter {
 				item.reject = reject;
 			});
 
+			// Store promise reference on item so we can update properties when task completes
+			item.promise = promise;
+
 			// Attach task handle properties to the promise
 			Object.defineProperty(promise, "id", { value: item.id, enumerable: true });
 			Object.defineProperty(promise, "cancel", { value: taskHandle.cancel, enumerable: true });
 			Object.defineProperty(promise, "status", { value: taskHandle.status, enumerable: true });
-			Object.defineProperty(promise, "startedAt", { get: () => item.startedAt, enumerable: true });
-			Object.defineProperty(promise, "finishedAt", { get: () => item.finishedAt, enumerable: true });
-			Object.defineProperty(promise, "result", { get: () => item.result, enumerable: true });
-			Object.defineProperty(promise, "error", { get: () => item.error, enumerable: true });
+			Object.defineProperty(promise, "startedAt", {
+				get: () => (promise._startedAt !== undefined ? promise._startedAt : item.startedAt),
+				enumerable: true
+			});
+			Object.defineProperty(promise, "finishedAt", {
+				get: () => (promise._finishedAt !== undefined ? promise._finishedAt : item.finishedAt),
+				enumerable: true
+			});
+			Object.defineProperty(promise, "result", {
+				get: () => (promise._result !== undefined ? promise._result : item.result),
+				enumerable: true
+			});
+			Object.defineProperty(promise, "error", {
+				get: () => (promise._error !== undefined ? promise._error : item.error),
+				enumerable: true
+			});
 
 			return promise;
 		}
@@ -1523,6 +1570,16 @@ export class HoldMyTask extends EventEmitter {
 
 			this.emit("success", item);
 
+			// Store final values on promise handle before resolving (for promise API)
+			if (item.promise) {
+				// Store final values so getters can access them after task deletion
+				item.promise._result = item.result;
+				item.promise._error = item.error;
+				item.promise._startedAt = item.startedAt;
+				item.promise._finishedAt = item.finishedAt;
+				item.promise._status = item.status;
+			}
+
 			// Call completion callback or resolve promise
 			if (item.callback) {
 				try {
@@ -1546,6 +1603,16 @@ export class HoldMyTask extends EventEmitter {
 			// Emit error event only for callback API (promise API conveys error via rejection)
 			if (item.callback) {
 				this.emit("error", item);
+			}
+
+			// Store final values on promise handle before rejecting (for promise API)
+			if (item.promise) {
+				// Store final values so getters can access them after task deletion
+				item.promise._result = item.result;
+				item.promise._error = item.error;
+				item.promise._startedAt = item.startedAt;
+				item.promise._finishedAt = item.finishedAt;
+				item.promise._status = item.status;
 			}
 
 			// Call completion callback or reject promise
@@ -1572,9 +1639,9 @@ export class HoldMyTask extends EventEmitter {
 			}
 
 			this.running.delete(item);
-			if (item.status !== "completed") {
-				this.tasks.delete(item.id); // Clean up failed/canceled tasks
-			}
+
+			// Clean up all finished tasks (completed, failed, canceled)
+			this.tasks.delete(item.id);
 
 			// Update delay tracking after task completion
 			const completedPriority = item.priority;

@@ -872,4 +872,115 @@ describe.each([
 
 		q.destroy();
 	});
+
+	test("size() and length() reflect current task count", async () => {
+		const queue = new HoldMyTask({ smartScheduling, concurrency: 1 }); // Use concurrency 1 for predictable ordering
+
+		// Initial state - should be 0
+		expect(queue.size()).toBe(0);
+		expect(queue.length()).toBe(0);
+
+		// Add some tasks that will execute sequentially
+		const promise1 = queue.enqueue(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+			return "task1";
+		});
+
+		const promise2 = queue.enqueue(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+			return "task2";
+		});
+
+		const promise3 = queue.enqueue(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+			return "task3";
+		});
+
+		// Should have 3 tasks queued
+		expect(queue.size()).toBe(3);
+		expect(queue.length()).toBe(3);
+
+		// Wait for first task to complete
+		await promise1;
+
+		// Should now have 2 tasks (1 completed, removed from count)
+		expect(queue.size()).toBe(2);
+		expect(queue.length()).toBe(2);
+
+		// Wait for second task
+		await promise2;
+
+		// Should now have 1 task
+		expect(queue.size()).toBe(1);
+		expect(queue.length()).toBe(1);
+
+		// Wait for final task
+		await promise3;
+
+		// Should be back to 0
+		expect(queue.size()).toBe(0);
+		expect(queue.length()).toBe(0);
+	});
+
+	test("size() decreases when tasks fail", async () => {
+		const queue = new HoldMyTask({ smartScheduling, concurrency: 1 });
+
+		expect(queue.size()).toBe(0);
+
+		// Add a failing task
+		const failingPromise = queue.enqueue(async () => {
+			throw new Error("Task failed");
+		});
+
+		expect(queue.size()).toBe(1);
+
+		// Wait for task to fail
+		try {
+			await failingPromise;
+		} catch (_) {
+			// Expected to fail
+		}
+
+		// Size should be back to 0 after task fails
+		expect(queue.size()).toBe(0);
+	});
+
+	test("size() decreases when tasks are cancelled", async () => {
+		const queue = new HoldMyTask({ smartScheduling, concurrency: 1 });
+
+		expect(queue.size()).toBe(0);
+
+		// Add a long-running task
+		const promise = queue.enqueue(
+			async () => {
+				await new Promise((resolve) => setTimeout(resolve, 1000));
+				return "should not complete";
+			},
+			{ id: "cancellable-task" }
+		);
+
+		expect(queue.size()).toBe(1);
+
+		// Cancel the task
+		const cancelled = queue.cancel("cancellable-task", "Test cancellation");
+		expect(cancelled).toBe(true);
+
+		// Handle the promise rejection from cancellation
+		try {
+			await promise;
+		} catch (error) {
+			expect(error.message).toBe("Test cancellation");
+		}
+
+		// Size should be back to 0 after cancellation
+		expect(queue.size()).toBe(0);
+
+		// Promise should reject
+		try {
+			await promise;
+			expect.fail("Promise should have been rejected");
+		} catch (error) {
+			expect(error.message).toBe("Test cancellation");
+		}
+	});
 }); // End of describe block for scheduling modes
