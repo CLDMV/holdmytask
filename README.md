@@ -13,6 +13,7 @@ A tiny, dependency-free task queue for Node.js that executes tasks with priority
 ## ✨ Features
 
 - **Smart scheduling** - Dynamic timeout-based scheduling for optimal performance
+- **Task coalescing** - Intelligent merging of similar tasks for efficiency
 - **Priority-based execution** - Higher priority tasks run first
 - **Concurrency control** - Limit simultaneous task execution
 - **Completion delays** - Configurable delays between task completions
@@ -57,14 +58,16 @@ import { HoldMyTask } from "@cldmv/holdmytask/src";
 
 **Note:** The main import automatically runs environment checks in development mode to ensure proper configuration.
 
-## �🚀 Quick Start
+## 🚀 Quick Start
 
 ```javascript
 import { HoldMyTask } from "@cldmv/holdmytask";
 
 const queue = new HoldMyTask({
 	concurrency: 2,
-	delays: { 1: 100, 2: 200 } // 100ms delay after priority 1 tasks, 200ms after priority 2
+	delays: { 1: 100, 2: 200 }, // 100ms delay after priority 1 tasks, 200ms after priority 2
+	coalescingWindowDuration: 200, // Group similar tasks within 200ms
+	coalescingMaxDelay: 1000 // Force execution after 1000ms max
 });
 
 // Enqueue a task
@@ -82,6 +85,14 @@ queue.enqueue(
 	},
 	{ priority: 1, timeout: 5000 }
 );
+
+// Coalescing example - multiple similar tasks become one
+const results = await Promise.all([
+	queue.enqueue(async () => updateUI(), { coalescingKey: "ui.update" }),
+	queue.enqueue(async () => updateUI(), { coalescingKey: "ui.update" }),
+	queue.enqueue(async () => updateUI(), { coalescingKey: "ui.update" })
+]);
+// Only one updateUI() call executes, all three promises resolve with the same result
 ```
 
 ## 🔄 Promise API
@@ -143,6 +154,9 @@ const queue = new HoldMyTask(options?)
 - `defaultPriority` (number, default: 0) - Default task priority
 - `maxQueue` (number, default: Infinity) - Maximum queued tasks
 - `delays` (object, default: {}) - Priority-to-delay mapping for completion delays
+- `coalescingWindowDuration` (number, default: 200) - Time window in milliseconds for grouping coalescing tasks
+- `coalescingMaxDelay` (number, default: 1000) - Maximum delay in milliseconds before forcing coalescing group execution
+- `coalescingResolveAllPromises` (boolean, default: true) - Whether all promises in a coalescing group resolve with the result
 - `onError` (function) - Global error handler
 - `now` (function) - Injectable clock for testing
 
@@ -166,6 +180,9 @@ Adds a task to the queue.
 - `timeout` (number) - Timeout in milliseconds
 - `signal` (AbortSignal) - External abort signal
 - `timestamp` (number) - Absolute execution timestamp
+- `start` (number) - Milliseconds from now when the task should be ready to run (convenience for timestamp calculation)
+- `coalescingKey` (string) - Tasks with the same coalescing key can be merged for efficiency
+- `mustRunBy` (number) - Absolute timestamp by which the task must execute (overrides coalescing delays)
 - `metadata` (any) - Custom metadata
 
 **Returns:** TaskHandle object with:
@@ -383,13 +400,13 @@ const queue = new HoldMyTask({
 // Timeline example:
 // 10:00:00 - Task A (priority 1) completes → 1000ms delay starts
 // 10:00:00.1 - Normal task B enqueued → must wait until 10:01:00
-// 10:00:00.2 - Urgent task C enqueued with bypass → runs immediately
+// 10:00:00.2 - Urgent task C enqueued with bypass → can start now (bypasses delay)
 
 queue.enqueue(normalTaskB, callback, { priority: 1 }); // Waits for delay
 
 queue.enqueue(urgentTaskC, callback, {
 	priority: 1,
-	bypassDelay: true // Skips the 1000ms delay, runs now
+	bypassDelay: true // Skips the 1000ms delay, can start now
 });
 
 // Alternative bypass syntax
@@ -410,7 +427,7 @@ const queue = new HoldMyTask({
 // Multiple tasks with different bypass behavior
 queue.enqueue(taskA, callback, { priority: 1 }); // Completes, starts 800ms delay
 queue.enqueue(taskB, callback, { priority: 2 }); // Waits for 800ms delay
-queue.enqueue(taskC, callback, { priority: 2, bypassDelay: true }); // Runs immediately
+queue.enqueue(taskC, callback, { priority: 2, bypassDelay: true }); // Bypasses delay, can start now
 queue.enqueue(taskD, callback, { priority: 1 }); // Waits for taskC's completion delay
 
 // Execution order: taskA → taskC (bypass) → taskB → taskD
@@ -423,6 +440,423 @@ queue.enqueue(taskD, callback, { priority: 1 }); // Waits for taskC's completion
 - ✅ **Scans entire queue** - finds bypass tasks even when normal tasks are blocked
 - ✅ **Concurrency aware** - works correctly with multiple concurrent execution slots
 - ⚠️ **Use sparingly** - frequent bypassing defeats the purpose of delay-based rate limiting
+
+## 🔄 Task Coalescing System
+
+The coalescing system allows multiple similar tasks to be intelligently merged, reducing redundant operations while ensuring all promises resolve with accurate results. This is perfect for scenarios like UI updates, API calls, or device commands where only the final result matters.
+
+### How Coalescing Works
+
+When tasks with the same `coalescingKey` are enqueued within a time window, they get merged into groups:
+
+1. **First task** creates a new coalescing group with a time window
+2. **Subsequent tasks** with the same key join the existing group (if within the window)
+3. **One representative task** executes for the entire group
+4. **All promises** in the group resolve with the same result
+
+⚠️ **Critical Timing Consideration**: Real-world tasks take time to execute (100ms-2000ms+). If your coalescing tasks need to see the final state from other operations, ensure proper timing with `start` delays or `timestamp` scheduling. Tasks that start too early may see intermediate states rather than final results.
+
+### 🎯 Correct Coalescing Pattern: Fire-and-Forget with Embedded Updates
+
+The most reliable pattern for coalescing with state consistency is the **"fire-and-forget with embedded updates"** approach:
+
+**❌ WRONG - Parallel Enqueueing:**
+
+```javascript
+// DON'T DO THIS - creates race conditions
+function volumeUp() {
+	const volumePromise = queue.enqueue(changeVolume, { priority: 1 });
+	const updatePromise = queue.enqueue(updateUI, { coalescingKey: "ui" }); // May see stale state
+	return Promise.all([volumePromise, updatePromise]);
+}
+```
+
+**✅ CORRECT - Embedded Update Pattern:**
+
+```javascript
+// DO THIS - guarantees state consistency
+function volumeUp() {
+	return queue.enqueue(
+		async () => {
+			// 1. Perform the main operation
+			const result = await changeVolume();
+
+			// 2. AFTER main operation completes, enqueue the update FROM WITHIN
+			queue.enqueue(async () => updateUI(), { coalescingKey: "ui" }); // Always sees final state
+
+			return result; // Consumer gets immediate response
+		},
+		{ priority: 1 }
+	);
+}
+```
+
+**Key Benefits:**
+
+- ✅ **100% State Accuracy**: Updates only trigger after main operations complete
+- ✅ **Fire-and-Forget**: Consumers get immediate responses, no waiting
+- ✅ **Optimal Coalescing**: Multiple updates coalesce naturally when triggered close together
+- ✅ **No Race Conditions**: Sequential execution guarantees consistent state
+
+### Basic Coalescing Configuration
+
+```javascript
+const queue = new HoldMyTask({
+	concurrency: 1,
+	coalescingWindowDuration: 200, // 200ms window for grouping tasks
+	coalescingMaxDelay: 1000, // Maximum 1000ms delay before forcing execution
+	coalescingResolveAllPromises: true // All promises get the result (default: true)
+});
+```
+
+### Simple Coalescing Example
+
+```javascript
+// Device volume control scenario
+async function updateVolume(change) {
+	return queue.enqueue(
+		async () => {
+			// Realistic device operations take time
+			const currentVolume = await device.getVolume(); // ~50-200ms
+			const newVolume = Math.max(0, Math.min(100, currentVolume + change));
+			await device.setVolume(newVolume); // ~100-500ms
+			return newVolume;
+		},
+		{
+			coalescingKey: "volume.update", // Tasks with same key get grouped
+			priority: 1,
+			delay: 100 // 100ms delay after completion
+		}
+	);
+}
+
+// User rapidly presses volume up 5 times within coalescing window
+const results = await Promise.all([
+	updateVolume(1), // Creates new group
+	updateVolume(1), // Joins existing group (if within 200ms window)
+	updateVolume(1), // Joins existing group (if within 200ms window)
+	updateVolume(1), // Joins existing group (if within 200ms window)
+	updateVolume(1) // Joins existing group (if within 200ms window)
+]);
+
+// If all tasks coalesce: ONE device.setVolume() call with final state
+// If timing spreads them: Multiple groups, each sees state at execution time
+console.log(results); // Could be [55, 55, 55, 55, 55] or [51, 53, 55, 55, 55] depending on timing
+```
+
+### Advanced Coalescing with Fire-and-Forget Pattern
+
+The correct pattern for coalescing with updates is to enqueue update tasks **from within** the main tasks after they complete. This ensures 100% accuracy and proper state consistency:
+
+```javascript
+const queue = new HoldMyTask({
+	concurrency: 2, // Allow volume and update tasks to run concurrently
+	coalescingWindowDuration: 200,
+	coalescingMaxDelay: 1000
+});
+
+// Volume commands using fire-and-forget pattern
+function volumeUp(amount = 1) {
+	const commandId = Date.now();
+
+	// Fire-and-forget: return promise but consumer doesn't await it
+	return queue.enqueue(
+		async () => {
+			console.log(`Executing volume command ${commandId}`);
+			// Realistic device operation takes time
+			const result = await device.increaseVolume(amount); // 200-1000ms
+
+			// AFTER volume completes, enqueue update task FROM WITHIN
+			console.log(`Volume complete, triggering UI update`);
+			queue.enqueue(
+				async () => {
+					console.log(`Updating UI for final volume`);
+					// UI operation sees accurate final state
+					const volume = await device.getVolume(); // ~50ms
+					updateVolumeDisplay(volume); // ~10-100ms
+					return volume;
+				},
+				{
+					coalescingKey: "volume.ui.update", // UI updates get coalesced
+					priority: 5, // Lower priority than volume commands
+					delay: 100 // Brief delay after UI updates
+				}
+			);
+
+			return result;
+		},
+		{
+			priority: 1, // High priority for user actions
+			delay: 100 // Brief delay after volume operations
+		}
+	);
+}
+
+// Consumer usage - fire and forget
+volumeUp(1); // Optimistic: assume it will work, don't wait
+volumeUp(1); // Multiple rapid calls
+volumeUp(1); // Each triggers its own update after completing
+volumeUp(1); // Updates get coalesced if close together
+volumeUp(1); // Final state is always accurate
+
+// Result: 5 volume commands execute sequentially
+//         Update commands coalesce (e.g., 5 → 3 actual updates)
+//         UI always shows accurate final state because updates only trigger after volume changes
+//         Consumer gets immediate response, no waiting for completion
+```
+
+### Multi-Group Coalescing
+
+The same `coalescingKey` can have multiple active groups based on timing windows:
+
+```javascript
+// API batch processing
+async function processDataBatch(data) {
+	return queue.enqueue(
+		async () => {
+			console.log(`Processing batch with ${data.length} items`);
+			return await api.processBatch(data);
+		},
+		{
+			coalescingKey: "api.batch.process",
+			priority: 2,
+			start: 100 // 100ms delay allows grouping
+		}
+	);
+}
+
+// Timeline:
+// 0ms: processDataBatch(data1) → creates Group A (window: 0-200ms)
+// 50ms: processDataBatch(data2) → joins Group A
+// 250ms: processDataBatch(data3) → creates Group B (window: 250-450ms)
+// 300ms: processDataBatch(data4) → joins Group B
+// 500ms: processDataBatch(data5) → creates Group C (window: 500-700ms)
+
+// Result: 3 separate API calls, each processing coalesced batches
+```
+
+### Coalescing with Explicit Timestamps
+
+For precise scheduling, use `timestamp` instead of `start`:
+
+```javascript
+const queue = new HoldMyTask({
+	coalescingWindowDuration: 300,
+	coalescingMaxDelay: 2000
+});
+
+// Schedule all updates for the same exact time
+const scheduleTime = Date.now() + 1000; // 1 second from now
+
+const promises = [];
+for (let i = 0; i < 10; i++) {
+	promises.push(
+		queue.enqueue(
+			async () => {
+				console.log("Executing coalesced batch update");
+				return await performBatchUpdate();
+			},
+			{
+				coalescingKey: "batch.update",
+				timestamp: scheduleTime, // All scheduled for same time
+				priority: 3
+			}
+		)
+	);
+}
+
+// All 10 tasks coalesce into 1 execution at exactly scheduleTime
+const results = await Promise.all(promises);
+console.log(`10 tasks became 1 execution, all got result:`, results[0]);
+```
+
+### Must-Run-By Deadlines
+
+Control maximum delay with `mustRunBy` to ensure tasks don't wait too long:
+
+```javascript
+const queue = new HoldMyTask({
+	coalescingWindowDuration: 500, // Try to group for 500ms
+	coalescingMaxDelay: 2000 // But never wait more than 2 seconds
+});
+
+// Critical system updates
+async function criticalSystemUpdate(updateData) {
+	return queue.enqueue(
+		async () => {
+			console.log("Executing critical system update");
+			return await applySystemUpdate(updateData);
+		},
+		{
+			coalescingKey: "system.critical.update",
+			priority: 1,
+			timestamp: Date.now() + 300, // Prefer 300ms delay
+			mustRunBy: Date.now() + 1500 // Must run within 1.5 seconds
+		}
+	);
+}
+
+// Even if coalescing window suggests waiting longer,
+// the task will execute by the mustRunBy deadline
+```
+
+### Promise Resolution Modes
+
+Control how promises resolve within coalescing groups:
+
+```javascript
+const queue = new HoldMyTask({
+	coalescingResolveAllPromises: true, // Default: all promises get the result
+	coalescingWindowDuration: 200
+});
+
+// Mode 1: All promises resolve (default behavior)
+const results1 = await Promise.all([
+	queue.enqueue(task, { coalescingKey: "test" }),
+	queue.enqueue(task, { coalescingKey: "test" }),
+	queue.enqueue(task, { coalescingKey: "test" })
+]);
+// All three promises resolve with the same result
+
+// Mode 2: Only representative promise resolves
+const queue2 = new HoldMyTask({
+	coalescingResolveAllPromises: false,
+	coalescingWindowDuration: 200
+});
+
+const [result1, result2, result3] = await Promise.all([
+	queue2.enqueue(task, { coalescingKey: "test" }), // Resolves with result
+	queue2.enqueue(task, { coalescingKey: "test" }), // Resolves with undefined
+	queue2.enqueue(task, { coalescingKey: "test" }) // Resolves with undefined
+]);
+// Only the first (representative) promise gets the actual result
+```
+
+### Real-World Coalescing Patterns
+
+#### Device Control Pattern
+
+```javascript
+class VolumeController {
+	constructor() {
+		this.queue = new HoldMyTask({
+			concurrency: 2, // Allow volume and update tasks concurrently
+			coalescingWindowDuration: 200,
+			coalescingMaxDelay: 1000
+		});
+	}
+
+	volumeUp(amount = 1) {
+		// Fire-and-forget pattern: consumer gets immediate response
+		return this.queue.enqueue(
+			async () => {
+				// Realistic device operations take time
+				const currentVolume = await this.device.getVolume(); // ~50-200ms
+				const newVolume = Math.min(100, currentVolume + amount);
+				await this.device.setVolume(newVolume); // ~100-500ms
+
+				// AFTER volume change completes, enqueue UI update FROM WITHIN
+				this.queue.enqueue(
+					async () => {
+						const volume = await this.device.getVolume(); // ~50ms
+						this.ui.updateVolumeDisplay(volume); // ~10-100ms
+						return volume;
+					},
+					{
+						coalescingKey: "volume.ui.update", // Updates coalesce together
+						priority: 3, // Lower priority than volume changes
+						delay: 100 // Brief delay after UI updates
+					}
+				);
+
+				return newVolume;
+			},
+			{
+				priority: 1, // High priority for user actions
+				delay: 50 // Brief delay between volume operations
+			}
+		);
+	}
+}
+```
+
+#### API Batch Processing Pattern
+
+```javascript
+class APIBatcher {
+	constructor() {
+		this.queue = new HoldMyTask({
+			concurrency: 2,
+			coalescingWindowDuration: 300,
+			coalescingMaxDelay: 1500
+		});
+	}
+
+	async submitData(data) {
+		return this.queue.enqueue(
+			async () => {
+				// All data submissions in the time window get batched
+				const batchData = this.collectBatchData(); // Implementation detail
+				const result = await this.api.submitBatch(batchData);
+				return result.find((item) => item.id === data.id);
+			},
+			{
+				coalescingKey: `batch.${data.category}`, // Batch by category
+				priority: 2,
+				metadata: { data, category: data.category }
+			}
+		);
+	}
+}
+```
+
+### Coalescing Performance Benefits
+
+Real-world performance improvements with the embedded update pattern:
+
+```javascript
+// Fire-and-forget pattern with embedded coalescing updates
+const queue = new HoldMyTask({
+	concurrency: 2,
+	coalescingWindowDuration: 200,
+	coalescingMaxDelay: 1000
+});
+
+// Volume control example - realistic embedded pattern
+function processVolumeCommands() {
+	// Consumer fires 100 rapid volume commands (fire-and-forget)
+	const promises = [];
+	for (let i = 0; i < 100; i++) {
+		promises.push(
+			queue.enqueue(
+				async () => {
+					// Main operation: change volume (200-500ms each)
+					const result = await device.changeVolume(1);
+
+					// Embedded update: triggered AFTER volume change (coalesces automatically)
+					queue.enqueue(
+						async () => updateVolumeDisplay(), // 50-100ms each
+						{ coalescingKey: "volume.display" }
+					);
+
+					return result; // Immediate response to consumer
+				},
+				{ priority: 1 }
+			)
+		);
+	}
+
+	// Consumer gets immediate responses, doesn't wait for display updates
+	return promises; // All resolve quickly with volume results
+}
+
+// Results with embedded coalescing:
+// - 100 volume operations execute (necessary work)
+// - ~5-15 display updates execute (95-85% coalescing efficiency)
+// - 100% accuracy: displays always show final state
+// - Fire-and-forget: consumers get immediate responses
+// - Total time: ~25-30 seconds (vs 50+ seconds without coalescing)
+```
 
 ### Timeouts
 

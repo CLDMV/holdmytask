@@ -33,12 +33,19 @@ export class HoldMyTask extends EventEmitter {
 	 * @param {boolean} [options.smartScheduling=true] - Use dynamic timeouts instead of constant polling for better performance
 	 * @param {number} [options.tick=25] - Polling interval in milliseconds when smartScheduling is disabled
 	 * @param {number} [options.healingInterval=5000] - Self-healing check interval in milliseconds (smart scheduling only)
+	 * @param {number} [options.coalescingWindowDuration=1000] - Default coalescing window duration in milliseconds
+	 * @param {number} [options.coalescingMaxDelay=2000] - Maximum delay before a coalesced task must run regardless of new tasks
+	 * @param {boolean} [options.coalescingMultipleCallbacks=false] - If true, call all coalesced callbacks; if false, call only the latest
+	 * @param {boolean} [options.coalescingResolveAllPromises=true] - If true, resolve all coalesced promises with same result; if false, reject non-latest
 	 * @example
 	 * const queue = new HoldMyTask({
 	 *   concurrency: 2,
 	 *   tick: 50,
 	 *   defaultPriority: 1,
-	 *   delays: { 0: 1000, 1: 500 }
+	 *   delays: { 0: 1000, 1: 500 },
+	 *   coalescingWindowDuration: 1500,
+	 *   coalescingMaxDelay: 3000,
+	 *   coalescingResolveAllPromises: true
 	 * });
 	 *
 	 * @example
@@ -59,6 +66,10 @@ export class HoldMyTask extends EventEmitter {
 			delays: {}, // priority -> delay in ms between tasks of that priority
 			smartScheduling: true, // Use smart timeouts instead of polling by default
 			healingInterval: 5000, // Self-healing check interval (smart scheduling only)
+			coalescingWindowDuration: 1000, // Default coalescing window duration
+			coalescingMaxDelay: 2000, // Maximum delay before task must run
+			coalescingMultipleCallbacks: false, // Call multiple callbacks vs single latest
+			coalescingResolveAllPromises: true, // Resolve all promises vs reject non-latest
 			...options
 		};
 
@@ -87,6 +98,11 @@ export class HoldMyTask extends EventEmitter {
 		// Traditional polling state (used when smartScheduling is disabled)
 		this.intervalId = null;
 
+		// Coalescing system - separate from main queue
+		this.coalescingGroups = new Map(); // coalescingKey -> Array<CoalescingGroup>
+		this.coalescingRepresentatives = new Map(); // representativeTaskId -> { coalescingKey, groupId }
+		this.nextGroupId = 1;
+
 		if (this.options.autoStart) {
 			this.resume();
 		}
@@ -99,11 +115,17 @@ export class HoldMyTask extends EventEmitter {
 	 * @param {Object} [options={}] - Additional options (if callback was provided as second parameter)
 	 * @param {number} [options.priority] - Task priority (higher numbers run first)
 	 * @param {number} [options.timestamp] - When the task should be ready to run (milliseconds since epoch)
+	 * @param {number} [options.start] - Milliseconds from now when the task should be ready to run (convenience for timestamp calculation)
 	 * @param {AbortSignal} [options.signal] - AbortSignal to cancel the task
 	 * @param {number} [options.timeout] - Task timeout in milliseconds (for execution time limit)
 	 * @param {number} [options.expire] - Task expiration timestamp or milliseconds from now (for queue waiting time limit)
 	 * @param {number} [options.delay] - Delay after task completion before next task of same priority
 	 * @param {boolean} [options.bypassDelay] - If true, skip any active delay period and start immediately
+	 * @param {string} [options.coalescingKey] - Key for task coalescing - tasks with same key will be coalesced within windows
+	 * @param {number} [options.coalescingWindowDuration] - Override default coalescing window duration in milliseconds
+	 * @param {number} [options.coalescingMaxDelay] - Override default max delay before task must run regardless of coalescing
+	 * @param {boolean} [options.coalescingMultipleCallbacks] - Override default for calling multiple vs single callback
+	 * @param {boolean} [options.coalescingResolveAllPromises] - Override default for resolving all promises vs rejecting non-latest
 	 * @param {*} [options.metadata] - Arbitrary metadata to attach to the task
 	 * @returns {Promise|Object} Promise (if no callback) or task control object with id, cancel, status methods
 	 * @throws {Error} If queue is destroyed or full
@@ -125,6 +147,10 @@ export class HoldMyTask extends EventEmitter {
 	 *
 	 * // Alternative: use delay: -1 to bypass
 	 * const urgent2 = queue.enqueue(urgentTask, { priority: 10, delay: -1 });
+	 *
+	 * // Coalescing tasks - multiple device status checks become one
+	 * queue.enqueue(checkDeviceStatus, callback1, { coalescingKey: "device-123", coalescingWindowDuration: 1000 });
+	 * queue.enqueue(checkDeviceStatus, callback2, { coalescingKey: "device-123" }); // Gets coalesced with first
 	 */
 	enqueue(task, optionsOrCallback, options = {}) {
 		if (this.destroyed) {
@@ -147,14 +173,22 @@ export class HoldMyTask extends EventEmitter {
 
 		const id = String(this.nextId++);
 		const now = this.now();
-		const readyAt = finalOptions.timestamp ?? now;
+
+		// Handle coalescing tasks separately
+		if (finalOptions.coalescingKey) {
+			return this.handleCoalescingTask(id, task, callback, finalOptions, now);
+		}
+
+		// Regular task handling
+		const readyAt = finalOptions.timestamp ?? (finalOptions.start ? now + finalOptions.start : now);
 
 		// Calculate expiration timestamp
 		let expireAt = null;
 		if (finalOptions.expire !== undefined) {
-			// If expire > current timestamp, treat as absolute timestamp
-			// If expire <= current timestamp, treat as milliseconds from now
-			if (finalOptions.expire > now) {
+			// If expire === -1, never expire (useful with coalescing)
+			if (finalOptions.expire === -1) {
+				expireAt = null;
+			} else if (finalOptions.expire > now) {
 				expireAt = finalOptions.expire;
 			} else {
 				expireAt = now + finalOptions.expire;
@@ -233,6 +267,541 @@ export class HoldMyTask extends EventEmitter {
 			Object.defineProperty(promise, "finishedAt", { get: () => tasksRef.get(id)?.finishedAt, enumerable: true });
 			Object.defineProperty(promise, "result", { get: () => tasksRef.get(id)?.result, enumerable: true });
 			Object.defineProperty(promise, "error", { get: () => tasksRef.get(id)?.error, enumerable: true });
+
+			return promise;
+		}
+
+		return taskHandle;
+	}
+
+	/**
+	 * Handles tasks with coalescingKey through the coalescing system.
+	 * @private
+	 * @param {string} id - Task ID
+	 * @param {Function} task - Task function
+	 * @param {Function|null} callback - Callback function (null for promise API)
+	 * @param {Object} options - Task options
+	 * @param {number} now - Current timestamp
+	 * @returns {Promise|Object} Promise or task handle
+	 */
+	handleCoalescingTask(id, task, callback, options, now) {
+		const { coalescingKey } = options;
+		const windowDuration = options.coalescingWindowDuration ?? this.options.coalescingWindowDuration;
+		const maxDelay = options.coalescingMaxDelay ?? this.options.coalescingMaxDelay;
+		const multipleCallbacks = options.coalescingMultipleCallbacks ?? this.options.coalescingMultipleCallbacks;
+		const resolveAllPromises = options.coalescingResolveAllPromises ?? this.options.coalescingResolveAllPromises;
+
+		const readyAt = options.timestamp ?? (options.start ? now + options.start : now);
+		const windowEnd = now + windowDuration;
+		const mustRunBy = now + maxDelay;
+
+		// Create task item (not added to main queue directly)
+		const taskItem = {
+			id,
+			task,
+			callback,
+			priority: options.priority ?? this.options.defaultPriority,
+			readyAt,
+			status: "coalescing",
+			signal: options.signal,
+			timeout: options.timeout,
+			delay: options.delay,
+			bypassDelay: options.bypassDelay || options.delay === -1,
+			metadata: options.metadata,
+			coalescingKey,
+			enqueueSeq: this.enqueueSeq++
+		};
+
+		// Handle signal abortion for coalescing tasks
+		if (options.signal?.aborted) {
+			taskItem.status = "canceled";
+			if (callback) {
+				try {
+					callback(new Error("Task was aborted"), null);
+				} catch (callbackError) {
+					this.emit("error", { ...taskItem, error: callbackError, callbackError: true });
+				}
+			}
+			return this.createTaskHandle(taskItem, callback);
+		}
+
+		// Add abort listener
+		options.signal?.addEventListener("abort", () => {
+			this.cancelCoalescingTask(id, coalescingKey, "Task was aborted");
+		});
+
+		// Find compatible coalescing group or create new one
+		const compatibleGroup = this.findCompatibleCoalescingGroup(coalescingKey, now);
+
+		if (compatibleGroup) {
+			// Add to existing group
+			this.addToCoalescingGroup(compatibleGroup, taskItem, windowEnd, mustRunBy);
+		} else {
+			// Create new coalescing group
+			this.createCoalescingGroup(coalescingKey, taskItem, windowEnd, mustRunBy, multipleCallbacks, resolveAllPromises);
+		}
+
+		return this.createTaskHandle(taskItem, callback);
+	}
+
+	/**
+	 * Finds a compatible coalescing group for a new task.
+	 * @private
+	 * @param {string} coalescingKey - The coalescing key
+	 * @param {number} now - Current timestamp
+	 * @param {number} windowEnd - End of new task's coalescing window
+	 * @param {number} mustRunBy - New task's mustRunBy deadline
+	 * @returns {Object|null} Compatible coalescing group or null
+	 */
+	findCompatibleCoalescingGroup(coalescingKey, now) {
+		const groups = this.coalescingGroups.get(coalescingKey);
+		if (!groups) return null;
+
+		// Find a group that is within both coalescing window and mustRunBy deadline
+		for (const group of groups) {
+			if (now <= group.windowEnd && now <= group.mustRunBy) {
+				return group;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Creates a new coalescing group with a representative task in the main queue.
+	 * @private
+	 * @param {string} coalescingKey - The coalescing key
+	 * @param {Object} taskItem - The first task item for this group
+	 * @param {number} windowEnd - End of coalescing window
+	 * @param {number} mustRunBy - Latest execution deadline
+	 * @param {boolean} multipleCallbacks - Whether to call multiple callbacks
+	 * @param {boolean} resolveAllPromises - Whether to resolve all promises with same result
+	 * @returns {Object} The created coalescing group
+	 */
+	createCoalescingGroup(coalescingKey, taskItem, windowEnd, mustRunBy, multipleCallbacks, resolveAllPromises) {
+		const representativeId = String(this.nextId++);
+		const groupId = String(this.nextGroupId++);
+
+		// Create representative task that will actually run
+		const representative = {
+			id: representativeId,
+			task: this.createCoalescingRepresentativeTask(coalescingKey, groupId),
+			callback: null, // Representative handles its own completion
+			priority: taskItem.priority,
+			readyAt: taskItem.readyAt,
+			expireAt: null, // Use mustRunBy logic instead
+			enqueueSeq: this.enqueueSeq++,
+			status: "pending",
+			signal: null, // Individual tasks handle their own signals
+			timeout: taskItem.timeout,
+			delay: taskItem.delay || 0,
+			bypassDelay: taskItem.bypassDelay || false,
+			metadata: { coalescingKey, groupId, representative: true },
+			isCoalescingRepresentative: true
+		};
+
+		// Create coalescing group
+		const group = {
+			coalescingKey,
+			groupId,
+			tasks: new Map([[taskItem.id, taskItem]]),
+			representativeId,
+			windowEnd,
+			mustRunBy,
+			multipleCallbacks,
+			resolveAllPromises,
+			latestTask: taskItem,
+			originalTask: taskItem.task // Store the actual task function
+		};
+
+		// Store group and representative mapping
+		if (!this.coalescingGroups.has(coalescingKey)) {
+			this.coalescingGroups.set(coalescingKey, []);
+		}
+		this.coalescingGroups.get(coalescingKey).push(group);
+		this.coalescingRepresentatives.set(representativeId, { coalescingKey, groupId });
+
+		// Add representative to main queue
+		this.tasks.set(representativeId, representative);
+		this.pendingHeap.push(representative);
+
+		if (this.isActive) {
+			if (this.options.smartScheduling) {
+				this.scheduleSmartTimeout();
+			} else {
+				this.scheduleNextTick();
+			}
+		}
+
+		return group;
+	}
+
+	/**
+	 * Adds a task to an existing coalescing group, updating the representative if needed.
+	 * @private
+	 * @param {Object} group - The existing coalescing group
+	 * @param {Object} taskItem - The new task item to add
+	 * @param {number} windowEnd - End of coalescing window
+	 * @param {number} mustRunBy - Latest execution deadline
+	 * @param {number} now - Current timestamp
+	 * @returns {void}
+	 */
+	addToCoalescingGroup(group, taskItem, windowEnd, mustRunBy) {
+		// Add task to group
+		group.tasks.set(taskItem.id, taskItem);
+
+		// Update group timing - keep original window but preserve earliest mustRunBy
+		// NOTE: Don't extend windowEnd - coalescing window should be fixed from first task
+		group.mustRunBy = Math.min(group.mustRunBy, mustRunBy);
+
+		// Update latest task (this will be the task function that actually runs)
+		group.latestTask = taskItem;
+		group.originalTask = taskItem.task;
+
+		// Update representative task in queue if needed
+		const representative = this.tasks.get(group.representativeId);
+		if (representative) {
+			// Update timing - use latest task's timing
+			representative.readyAt = taskItem.readyAt;
+			representative.priority = taskItem.priority;
+			representative.timeout = taskItem.timeout;
+			representative.delay = taskItem.delay || representative.delay;
+			representative.bypassDelay = taskItem.bypassDelay || representative.bypassDelay;
+
+			// Rebuild heaps to reflect updated representative
+			this.rebuildHeaps();
+
+			if (this.isActive) {
+				if (this.options.smartScheduling) {
+					this.scheduleSmartTimeout();
+				} else {
+					this.scheduleNextTick();
+				}
+			}
+		}
+	}
+
+	/**
+	 * Creates the representative task function that manages coalesced task execution.
+	 * @private
+	 * @param {string} coalescingKey - The coalescing key
+	 * @param {string} groupId - The group ID
+	 * @returns {Function} The representative task function
+	 */
+	createCoalescingRepresentativeTask(coalescingKey, groupId) {
+		return async (signal) => {
+			const groups = this.coalescingGroups.get(coalescingKey);
+			const group = groups?.find((g) => g.groupId === groupId);
+
+			if (!group) {
+				throw new Error(`Coalescing group ${coalescingKey}:${groupId} not found`);
+			}
+
+			try {
+				// Execute the actual task (using latest task's function)
+				const result = await group.originalTask(signal);
+
+				// Handle callbacks/promises
+				this.resolveCoalescingGroup(group, null, result);
+
+				return result;
+			} catch (error) {
+				// Handle errors for all tasks in group
+				this.resolveCoalescingGroup(group, error, null);
+				throw error;
+			} finally {
+				// Clean up coalescing group
+				this.cleanupCoalescingGroup(coalescingKey, groupId);
+			}
+		};
+	}
+
+	/**
+	 * Resolves all callbacks/promises in a coalescing group.
+	 * @private
+	 * @param {Object} group - The coalescing group
+	 * @param {Error|null} error - Error if task failed
+	 * @param {*} result - Result if task succeeded
+	 * @returns {void}
+	 */
+	resolveCoalescingGroup(group, error, result) {
+		if (group.multipleCallbacks) {
+			// Multiple callback mode - resolve all non-canceled tasks
+			for (const taskItem of group.tasks.values()) {
+				if (taskItem.status === "canceled") continue;
+
+				taskItem.status = error ? "error" : "completed";
+				taskItem.finishedAt = this.now();
+
+				if (error) {
+					taskItem.error = error;
+				} else {
+					taskItem.result = result;
+				}
+
+				if (taskItem.callback) {
+					try {
+						if (error) {
+							taskItem.callback(error, null);
+						} else {
+							taskItem.callback(null, result);
+						}
+					} catch (callbackError) {
+						this.emit("error", { ...taskItem, error: callbackError, callbackError: true });
+					}
+				} else if (taskItem.resolve) {
+					if (error) {
+						taskItem.reject(error);
+					} else {
+						taskItem.resolve(result);
+					}
+				}
+			}
+
+			// Clean up canceled tasks that didn't get resolved
+			for (const taskItem of group.tasks.values()) {
+				if (taskItem.status === "canceled" && taskItem.reject) {
+					taskItem.reject(new Error("Task was canceled"));
+				}
+			}
+		} else {
+			// Single callback mode - resolve latest only or all based on resolveAllPromises option
+			for (const taskItem of group.tasks.values()) {
+				if (taskItem.status === "canceled") continue;
+
+				if (taskItem === group.latestTask) {
+					// Always resolve the latest task
+					taskItem.status = error ? "error" : "completed";
+					taskItem.finishedAt = this.now();
+
+					if (error) {
+						taskItem.error = error;
+					} else {
+						taskItem.result = result;
+					}
+
+					if (taskItem.callback) {
+						try {
+							if (error) {
+								taskItem.callback(error, null);
+							} else {
+								taskItem.callback(null, result);
+							}
+						} catch (callbackError) {
+							this.emit("error", { ...taskItem, error: callbackError, callbackError: true });
+						}
+					} else if (taskItem.resolve) {
+						if (error) {
+							taskItem.reject(error);
+						} else {
+							taskItem.resolve(result);
+						}
+					}
+				} else {
+					// Handle other tasks based on resolveAllPromises setting
+					if (group.resolveAllPromises) {
+						// Resolve with same result as latest task
+						taskItem.status = error ? "error" : "coalesced";
+						taskItem.finishedAt = this.now();
+
+						if (error) {
+							taskItem.error = error;
+						} else {
+							taskItem.result = result;
+						}
+
+						if (taskItem.callback) {
+							try {
+								if (error) {
+									taskItem.callback(error, null);
+								} else {
+									taskItem.callback(null, result);
+								}
+							} catch (callbackError) {
+								this.emit("error", { ...taskItem, error: callbackError, callbackError: true });
+							}
+						} else if (taskItem.resolve) {
+							if (error) {
+								taskItem.reject(error);
+							} else {
+								taskItem.resolve(result);
+							}
+						}
+					} else {
+						// Reject other tasks (original behavior)
+						taskItem.status = "coalesced";
+						taskItem.finishedAt = this.now();
+
+						if (taskItem.callback) {
+							try {
+								taskItem.callback(new Error("Task was coalesced with a newer task"), null);
+							} catch (callbackError) {
+								this.emit("error", { ...taskItem, error: callbackError, callbackError: true });
+							}
+						} else if (taskItem.reject) {
+							taskItem.reject(new Error("Task was coalesced with a newer task"));
+						}
+					}
+				}
+			}
+
+			// Clean up canceled tasks
+			for (const taskItem of group.tasks.values()) {
+				if (taskItem.status === "canceled" && taskItem.reject) {
+					taskItem.reject(new Error("Task was canceled"));
+				}
+			}
+		}
+	}
+
+	/**
+	 * Cancels a specific task within a coalescing group.
+	 * @private
+	 * @param {string} taskId - ID of task to cancel
+	 * @param {string} coalescingKey - The coalescing key
+	 * @param {string} reason - Cancellation reason
+	 * @returns {void}
+	 */
+	cancelCoalescingTask(taskId, coalescingKey, reason) {
+		const groups = this.coalescingGroups.get(coalescingKey) || [];
+
+		for (const group of groups) {
+			const taskItem = group.tasks.get(taskId);
+			if (!taskItem) continue;
+
+			taskItem.status = "canceled";
+			taskItem.finishedAt = this.now();
+
+			// Handle callback/promise
+			if (taskItem.callback) {
+				try {
+					taskItem.callback(new Error(reason), null);
+				} catch (callbackError) {
+					this.emit("error", { ...taskItem, error: callbackError, callbackError: true });
+				}
+			} else if (taskItem.reject) {
+				taskItem.reject(new Error(reason));
+			}
+
+			// Remove from group
+			group.tasks.delete(taskId);
+
+			// If group is empty, clean up representative task
+			if (group.tasks.size === 0) {
+				const representative = this.tasks.get(group.representativeId);
+				if (representative) {
+					this.cancelTask(group.representativeId, "All coalesced tasks canceled");
+				}
+				this.cleanupCoalescingGroup(coalescingKey, group.groupId);
+			} else {
+				// Update latest task if needed
+				const remainingTasks = Array.from(group.tasks.values());
+				group.latestTask = remainingTasks[remainingTasks.length - 1];
+				group.originalTask = group.latestTask.task;
+			}
+
+			return; // Found and handled the task
+		}
+	}
+
+	/**
+	 * Cleans up a coalescing group after completion or cancellation.
+	 * @private
+	 * @param {string} coalescingKey - The coalescing key
+	 * @param {string} groupId - The group ID to clean up
+	 * @returns {void}
+	 */
+	cleanupCoalescingGroup(coalescingKey, groupId) {
+		const groups = this.coalescingGroups.get(coalescingKey);
+		if (!groups) return;
+
+		const groupIndex = groups.findIndex((g) => g.groupId === groupId);
+		if (groupIndex >= 0) {
+			const group = groups[groupIndex];
+			groups.splice(groupIndex, 1);
+
+			// Remove representative mapping
+			this.coalescingRepresentatives.delete(group.representativeId);
+
+			// If no more groups for this key, remove the key entirely
+			if (groups.length === 0) {
+				this.coalescingGroups.delete(coalescingKey);
+			}
+		}
+	}
+
+	/**
+	 * Rebuilds the heap structures to reflect updated priorities/timing.
+	 * @private
+	 * @returns {void}
+	 */
+	rebuildHeaps() {
+		// Rebuild pending heap
+		const pendingTasks = [...this.pendingHeap.heap];
+		this.pendingHeap = new MinHeap((a, b) => a.readyAt - b.readyAt);
+		for (const task of pendingTasks) {
+			this.pendingHeap.push(task);
+		}
+
+		// Rebuild ready heap
+		const readyTasks = [...this.readyHeap.heap];
+		this.readyHeap = new MinHeap((a, b) => {
+			if (a.priority !== b.priority) return b.priority - a.priority;
+			if (a.readyAt !== b.readyAt) return a.readyAt - b.readyAt;
+			return a.enqueueSeq - b.enqueueSeq;
+		});
+		for (const task of readyTasks) {
+			this.readyHeap.push(task);
+		}
+	}
+
+	/**
+	 * Creates a task handle for both regular and coalescing tasks.
+	 * @private
+	 * @param {Object} item - The task item
+	 * @param {Function|null} callback - Callback function
+	 * @returns {Promise|Object} Promise or task control object
+	 */
+	createTaskHandle(item, callback) {
+		const taskHandle = {
+			id: item.id,
+			cancel: (reason) => {
+				if (item.coalescingKey) {
+					this.cancelCoalescingTask(item.id, item.coalescingKey, reason || "Task canceled");
+				} else {
+					this.cancelTask(item.id, reason || "Task canceled");
+				}
+			},
+			status: () => item.status,
+			get startedAt() {
+				return item.startedAt;
+			},
+			get finishedAt() {
+				return item.finishedAt;
+			},
+			get result() {
+				return item.result;
+			},
+			get error() {
+				return item.error;
+			}
+		};
+
+		// Return Promise if no callback provided
+		if (!callback) {
+			const promise = new Promise((resolve, reject) => {
+				item.resolve = resolve;
+				item.reject = reject;
+			});
+
+			// Attach task handle properties to the promise
+			Object.defineProperty(promise, "id", { value: item.id, enumerable: true });
+			Object.defineProperty(promise, "cancel", { value: taskHandle.cancel, enumerable: true });
+			Object.defineProperty(promise, "status", { value: taskHandle.status, enumerable: true });
+			Object.defineProperty(promise, "startedAt", { get: () => item.startedAt, enumerable: true });
+			Object.defineProperty(promise, "finishedAt", { get: () => item.finishedAt, enumerable: true });
+			Object.defineProperty(promise, "result", { get: () => item.result, enumerable: true });
+			Object.defineProperty(promise, "error", { get: () => item.error, enumerable: true });
 
 			return promise;
 		}
@@ -334,6 +903,24 @@ export class HoldMyTask extends EventEmitter {
 			this.emit("cancel", item);
 		}
 
+		// Clear coalescing groups
+		for (const [_, groups] of this.coalescingGroups) {
+			for (const group of groups) {
+				for (const taskItem of group.tasks.values()) {
+					taskItem.status = "canceled";
+					if (taskItem.callback) {
+						try {
+							taskItem.callback(new Error("Queue cleared"), null);
+						} catch (callbackError) {
+							this.emit("error", { ...taskItem, error: callbackError, callbackError: true });
+						}
+					} else if (taskItem.reject) {
+						taskItem.reject(new Error("Queue cleared"));
+					}
+				}
+			}
+		}
+
 		this.pendingHeap = new MinHeap((a, b) => a.readyAt - b.readyAt);
 		this.readyHeap = new MinHeap((a, b) => {
 			if (a.priority !== b.priority) return b.priority - a.priority;
@@ -341,6 +928,8 @@ export class HoldMyTask extends EventEmitter {
 			return a.enqueueSeq - b.enqueueSeq;
 		});
 		this.tasks.clear();
+		this.coalescingGroups.clear();
+		this.coalescingRepresentatives.clear();
 
 		// Reschedule since we may have no work
 		if (this.isActive) {
