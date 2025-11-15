@@ -265,7 +265,10 @@ This pattern is particularly useful when you need to handle initialization error
 - `defaultPriority` (number, default: 0) - Default task priority
 - `maxQueue` (number, default: Infinity) - Maximum queued tasks. Use `-1` for unlimited queue capacity (equivalent to `Infinity`)
 - `delays` (object, default: {}) - **DEPRECATED:** Priority-to-delay mapping for completion delays (use `priorities` instead)
-- `priorities` (object, default: {}) - Priority-specific configuration: `{ [priority]: { delay, start } }`
+- `priorities` (object, default: {}) - Priority-specific configuration: `{ [priority]: { concurrency, postDelay, startDelay } }`
+  - `concurrency` (number) - Maximum concurrent tasks for this priority (defaults to global concurrency limit)
+  - `postDelay` (number) - Delay after task completion before next task of same priority
+  - `startDelay` (number) - Delay before task execution (pre-execution delay)
 - `coalescing` (object) - Enhanced coalescing configuration
   - `defaults` (object) - Default settings for all coalescing keys
     - `windowDuration` (number, default: 200) - Window duration in milliseconds
@@ -844,6 +847,112 @@ const legacyQueue = new HoldMyTask({
 - Sets a precise timeout for that moment
 - Includes healing mechanism to prevent scheduler stalls
 - Falls back gracefully on complex timing scenarios
+
+### Per-Priority Concurrency Limits
+
+HoldMyTask supports granular concurrency control at the priority level, allowing you to fine-tune how many tasks of each priority can run simultaneously while still respecting the global concurrency limit.
+
+#### Key Benefits
+
+- **Database operations** - Run only 1 critical database migration at a time
+- **API rate limiting** - Limit API calls per priority to avoid overwhelming services
+- **Resource management** - Control expensive operations while allowing lightweight tasks
+- **Flexible scaling** - Different priorities can have different concurrency characteristics
+
+#### Configuration
+
+```javascript
+const queue = new HoldMyTask({
+	concurrency: 8, // Global maximum: 8 total tasks across all priorities
+	priorities: {
+		1: {
+			concurrency: 1, // Critical: Only 1 at a time (database migrations, etc.)
+			postDelay: 100, // 100ms delay after completion
+			startDelay: 0 // No pre-execution delay
+		},
+		2: {
+			concurrency: 3, // Important: Up to 3 at a time (API calls, file processing)
+			postDelay: 200, // 200ms delay after completion
+			startDelay: 50 // 50ms pre-execution delay
+		},
+		3: {
+			concurrency: 5, // Background: Up to 5 at a time (cleanup, logging, etc.)
+			postDelay: 0, // No post-completion delay
+			startDelay: 100 // 100ms pre-execution delay
+		}
+		// Priority 4+ tasks: No specific limit, use global concurrency
+	}
+});
+```
+
+#### How It Works
+
+1. **Global Limit First** - The total running tasks never exceed the global `concurrency` setting
+2. **Per-Priority Limits** - Tasks of each priority respect their individual `concurrency` limit
+3. **Dynamic Scheduling** - If one priority is at its limit, other priorities can still start tasks
+4. **Automatic Fallback** - Priorities without `concurrency` settings use the global limit
+
+#### Usage Examples
+
+```javascript
+// Database migration (priority 1): Only 1 can run at a time
+await queue.enqueue(
+	async () => {
+		await runDatabaseMigration();
+	},
+	{ priority: 1 }
+);
+
+// API calls (priority 2): Up to 3 can run concurrently
+await queue.enqueue(
+	async () => {
+		return await fetchUserData(userId);
+	},
+	{ priority: 2 }
+);
+
+// Background cleanup (priority 3): Up to 5 can run concurrently
+await queue.enqueue(
+	async () => {
+		await cleanupTempFiles();
+	},
+	{ priority: 3 }
+);
+
+// High-priority urgent task (priority 10): Uses global concurrency limit
+await queue.enqueue(
+	async () => {
+		await handleEmergencyAlert();
+	},
+	{ priority: 10 }
+);
+```
+
+#### Monitoring Per-Priority Concurrency
+
+```javascript
+// Check current concurrency state
+const inspection = queue.inspect();
+console.log("Global concurrency:", inspection.scheduler.currentConcurrency + "/" + inspection.scheduler.concurrency);
+
+// Per-priority concurrency information
+Object.entries(inspection.scheduler.priorityConcurrency).forEach(([priority, info]) => {
+	console.log(`Priority ${priority}: ${info.running}/${info.limit} (${info.available} available)`);
+});
+
+// Or use the scheduler-specific inspection
+const scheduler = queue.inspectScheduler();
+console.log("Priority concurrency limits:", scheduler.priorityConcurrency);
+```
+
+#### Example Output
+
+```text
+Global concurrency: 6/8
+Priority 1: 1/1 (0 available)
+Priority 2: 2/3 (1 available)
+Priority 3: 3/5 (2 available)
+```
 
 ### Priority Delays - Advanced Timing Control
 

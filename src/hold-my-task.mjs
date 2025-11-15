@@ -34,6 +34,9 @@ export class HoldMyTask extends EventEmitter {
 	 * @param {number} [options.tick=25] - Polling interval in milliseconds when smartScheduling is disabled
 	 * @param {number} [options.healingInterval=5000] - Self-healing check interval in milliseconds (smart scheduling only)
 	 * @param {Object} [options.priorities={}] - Priority-specific default configurations
+	 * @param {number} [options.priorities[priority].concurrency] - Maximum concurrent tasks for this priority (defaults to global concurrency limit)
+	 * @param {number} [options.priorities[priority].postDelay] - Delay after task completion before next task of same priority
+	 * @param {number} [options.priorities[priority].startDelay] - Delay before task execution (pre-execution delay)
 	 * @param {Object} [options.coalescing] - Enhanced coalescing configuration (preferred over flat options)
 	 * @param {Object} [options.coalescing.defaults] - Default coalescing settings for all keys
 	 * @param {number} [options.coalescing.defaults.windowDuration=200] - Default window duration in milliseconds
@@ -52,12 +55,12 @@ export class HoldMyTask extends EventEmitter {
 	 * @example
 	 * // Enhanced configuration with priority defaults and extended coalescing
 	 * const queue = new HoldMyTask({
-	 *   concurrency: 2,
+	 *   concurrency: 8, // Global maximum: 8 total tasks across all priorities
 	 *   delays: { 0: 1000, 1: 500 },
 	 *   priorities: {
-	 *     1: { postDelay: 100, startDelay: 0 },    // High priority: 100ms post-completion delay, immediate start
-	 *     2: { postDelay: 200, startDelay: 50 },   // Medium priority: 200ms post-completion delay, 50ms pre-execution delay
-	 *     3: { postDelay: 0, startDelay: 100 }     // Low priority: no post-completion delay, 100ms pre-execution delay
+	 *     1: { concurrency: 1, postDelay: 100, startDelay: 0 },    // Critical: Only 1 at a time, 100ms post-delay
+	 *     2: { concurrency: 3, postDelay: 200, startDelay: 50 },   // Important: Up to 3 at a time, 200ms post-delay
+	 *     3: { concurrency: 5, postDelay: 0, startDelay: 100 }     // Background: Up to 5 at a time, 100ms pre-delay
 	 *   },
 	 *   coalescing: {
 	 *     defaults: {
@@ -323,6 +326,7 @@ export class HoldMyTask extends EventEmitter {
 		});
 
 		this.running = new Set();
+		this.runningByPriority = new Map(); // Track running tasks per priority for concurrency limits
 		this.tasks = new Map();
 		this.nextId = 1;
 		this.enqueueSeq = 1;
@@ -1652,13 +1656,13 @@ export class HoldMyTask extends EventEmitter {
 			nextPending = this.pendingHeap.peek();
 		}
 
-		// Start tasks up to concurrency limit
+		// Start tasks up to concurrency limits (both global and per-priority)
 		let hasWaitingTasks = false;
 		const currentTime = this.now();
 		const delay = this.lastCompletedPriority !== null ? (this.options.priorities[this.lastCompletedPriority]?.postDelay ?? 0) : 0;
 		const delayActive = delay > 0 && currentTime < this.nextAvailableTime;
 
-		while (this.running.size < this.options.concurrency && this.readyHeap.size() > 0) {
+		while (this.readyHeap.size() > 0) {
 			const task = this.readyHeap.peek();
 			if (!task) break;
 
@@ -1669,11 +1673,59 @@ export class HoldMyTask extends EventEmitter {
 				continue; // Check next task
 			}
 
-			const canStart = task.bypassDelay || !delayActive;
+			// Check concurrency limits (both global and per-priority)
+			const canStartConcurrency = this._canStartTask(task);
+			const canStartDelay = task.bypassDelay || !delayActive;
+			const canStart = canStartConcurrency && canStartDelay;
 
 			if (canStart) {
 				this.readyHeap.pop(); // Remove it from heap
 				this._startTask(task);
+			} else if (!canStartConcurrency) {
+				// Can't start due to concurrency limits - look for other priorities that can run
+				const heapArray = this.readyHeap.heap.slice(); // Copy heap array
+				let foundStartableTask = false;
+
+				for (let i = 0; i < heapArray.length; i++) {
+					const candidateTask = heapArray[i];
+
+					// Check if candidate task has expired
+					if (candidateTask.expireAt && currentTime >= candidateTask.expireAt) {
+						// Remove expired task and continue searching
+						const remainingTasks = heapArray.filter((t) => t.id !== candidateTask.id);
+						this.readyHeap.heap = [];
+						for (const t of remainingTasks) {
+							this.readyHeap.push(t);
+						}
+						this._expireTask(candidateTask);
+						// Update heapArray for next iteration
+						heapArray.splice(i, 1);
+						i--; // Adjust index since we removed an item
+						continue;
+					}
+
+					// Check if this task can start (considering both concurrency and delay limits)
+					const candidateCanStartConcurrency = this._canStartTask(candidateTask);
+					const candidateCanStartDelay = candidateTask.bypassDelay || !delayActive;
+
+					if (candidateCanStartConcurrency && candidateCanStartDelay) {
+						foundStartableTask = true;
+						// Remove the task from heap and start it
+						const remainingTasks = heapArray.filter((t) => t.id !== candidateTask.id);
+						this.readyHeap.heap = [];
+						for (const t of remainingTasks) {
+							this.readyHeap.push(t);
+						}
+						this._startTask(candidateTask);
+						break;
+					}
+				}
+
+				if (!foundStartableTask) {
+					// No tasks can start due to concurrency limits
+					hasWaitingTasks = true;
+					break;
+				}
 			} else {
 				// Can't start due to delay - check if there are any bypass tasks in the heap
 				const heapArray = this.readyHeap.heap.slice(); // Copy heap array
@@ -1724,6 +1776,30 @@ export class HoldMyTask extends EventEmitter {
 		if (!this.options.smartScheduling && (this.pendingHeap.size() > 0 || this.readyHeap.size() > 0 || hasWaitingTasks)) {
 			this._scheduleNextTick();
 		}
+	}
+
+	/**
+	 * Checks if a task can start based on both global and per-priority concurrency limits.
+	 * @param {Object} task - The task to check
+	 * @returns {boolean} True if the task can start, false if concurrency limits prevent it
+	 * @private
+	 */
+	_canStartTask(task) {
+		// Check global concurrency limit
+		if (this.running.size >= this.options.concurrency) {
+			return false;
+		}
+
+		// Check per-priority concurrency limit if configured
+		const priorityConfig = this.options.priorities[task.priority];
+		if (priorityConfig && typeof priorityConfig.concurrency === "number") {
+			const runningForPriority = this.runningByPriority.get(task.priority) || 0;
+			if (runningForPriority >= priorityConfig.concurrency) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/**
@@ -1780,9 +1856,12 @@ export class HoldMyTask extends EventEmitter {
 		item.status = "running";
 		item.startedAt = this.now();
 		this.running.add(item);
-		this.emit("start", item);
 
-		// Create abort controller for timeout
+		// Track per-priority running count
+		const currentPriorityCount = this.runningByPriority.get(item.priority) || 0;
+		this.runningByPriority.set(item.priority, currentPriorityCount + 1);
+
+		this.emit("start", item); // Create abort controller for timeout
 		const abortController = new AbortController();
 		let timeoutId;
 
@@ -1884,10 +1963,14 @@ export class HoldMyTask extends EventEmitter {
 
 			this.running.delete(item);
 
-			// Clean up all finished tasks (completed, failed, canceled)
-			this.tasks.delete(item.id);
+			// Update per-priority running count
+			const currentPriorityCount = this.runningByPriority.get(item.priority) || 0;
+			if (currentPriorityCount > 0) {
+				this.runningByPriority.set(item.priority, currentPriorityCount - 1);
+			}
 
-			// Update delay tracking after task completion
+			// Clean up all finished tasks (completed, failed, canceled)
+			this.tasks.delete(item.id); // Update delay tracking after task completion
 			const completedPriority = item.priority;
 			const taskDelay = item.delay;
 			const priorityDelay = this.options.priorities[completedPriority]?.postDelay ?? 0;
@@ -2418,8 +2501,32 @@ export class HoldMyTask extends EventEmitter {
 			concurrency: this.options.concurrency,
 			currentConcurrency: this.running.size,
 			tick: this.options.tick,
-			nextActiveDelay: this.nextAvailableTime > now ? this.nextAvailableTime - now : null
+			nextActiveDelay: this.nextAvailableTime > now ? this.nextAvailableTime - now : null,
+			priorityConcurrency: {}
 		};
+
+		// Add per-priority concurrency information
+		for (const [priority, count] of this.runningByPriority.entries()) {
+			if (count > 0) {
+				const priorityConfig = this.options.priorities[priority];
+				schedulerState.priorityConcurrency[priority] = {
+					running: count,
+					limit: priorityConfig?.concurrency || this.options.concurrency,
+					available: (priorityConfig?.concurrency || this.options.concurrency) - count
+				};
+			}
+		}
+
+		// Also show configured priority limits even if nothing is running
+		for (const [priority, config] of Object.entries(this.options.priorities)) {
+			if (config.concurrency && !schedulerState.priorityConcurrency[priority]) {
+				schedulerState.priorityConcurrency[priority] = {
+					running: 0,
+					limit: config.concurrency,
+					available: config.concurrency
+				};
+			}
+		}
 
 		// Get coalescing information
 		const coalescingInfo = {};
@@ -2653,6 +2760,30 @@ export class HoldMyTask extends EventEmitter {
 			};
 		}
 
+		// Get per-priority concurrency information
+		const priorityConcurrency = {};
+		for (const [priority, count] of this.runningByPriority.entries()) {
+			if (count > 0) {
+				const priorityConfig = this.options.priorities[priority];
+				priorityConcurrency[priority] = {
+					running: count,
+					limit: priorityConfig?.concurrency || this.options.concurrency,
+					available: (priorityConfig?.concurrency || this.options.concurrency) - count
+				};
+			}
+		}
+
+		// Also include configured priority limits even if nothing is running
+		for (const [priority, config] of Object.entries(this.options.priorities)) {
+			if (config.concurrency && !priorityConcurrency[priority]) {
+				priorityConcurrency[priority] = {
+					running: 0,
+					limit: config.concurrency,
+					available: config.concurrency
+				};
+			}
+		}
+
 		return {
 			timestamp: now,
 			isActive: this.isActive,
@@ -2660,6 +2791,7 @@ export class HoldMyTask extends EventEmitter {
 			concurrency: this.options.concurrency,
 			currentConcurrency: this.running.size,
 			availableSlots: this.options.concurrency - this.running.size,
+			priorityConcurrency: priorityConcurrency,
 			timers: {
 				schedulerInterval: this.schedulerInterval,
 				schedulerTimeout: this.schedulerTimeout,
@@ -2710,6 +2842,14 @@ export class HoldMyTask extends EventEmitter {
 		console.log(`  Pending: ${inspection.totals.pendingTasks}`);
 		console.log(`  Ready: ${inspection.totals.readyTasks}`);
 		console.log(`  Running: ${inspection.totals.runningTasks}`);
+
+		// Show per-priority concurrency information if configured
+		if (Object.keys(inspection.scheduler.priorityConcurrency).length > 0) {
+			console.log("\n--- Priority Concurrency ---");
+			Object.entries(inspection.scheduler.priorityConcurrency).forEach(([priority, info]) => {
+				console.log(`  Priority ${priority}: ${info.running}/${info.limit} (${info.available} available)`);
+			});
+		}
 
 		console.log("\n--- Timer State ---");
 		console.log(`Interval: ${inspection.timers.schedulerInterval.active ? `Active (${inspection.timers.schedulerInterval.id})` : "None"}`);

@@ -18,6 +18,9 @@ export class HoldMyTask extends EventEmitter<[never]> {
      * @param {number} [options.tick=25] - Polling interval in milliseconds when smartScheduling is disabled
      * @param {number} [options.healingInterval=5000] - Self-healing check interval in milliseconds (smart scheduling only)
      * @param {Object} [options.priorities={}] - Priority-specific default configurations
+     * @param {number} [options.priorities[priority].concurrency] - Maximum concurrent tasks for this priority (defaults to global concurrency limit)
+     * @param {number} [options.priorities[priority].postDelay] - Delay after task completion before next task of same priority
+     * @param {number} [options.priorities[priority].startDelay] - Delay before task execution (pre-execution delay)
      * @param {Object} [options.coalescing] - Enhanced coalescing configuration (preferred over flat options)
      * @param {Object} [options.coalescing.defaults] - Default coalescing settings for all keys
      * @param {number} [options.coalescing.defaults.windowDuration=200] - Default window duration in milliseconds
@@ -36,12 +39,12 @@ export class HoldMyTask extends EventEmitter<[never]> {
      * @example
      * // Enhanced configuration with priority defaults and extended coalescing
      * const queue = new HoldMyTask({
-     *   concurrency: 2,
+     *   concurrency: 8, // Global maximum: 8 total tasks across all priorities
      *   delays: { 0: 1000, 1: 500 },
      *   priorities: {
-     *     1: { postDelay: 100, startDelay: 0 },    // High priority: 100ms post-completion delay, immediate start
-     *     2: { postDelay: 200, startDelay: 50 },   // Medium priority: 200ms post-completion delay, 50ms pre-execution delay
-     *     3: { postDelay: 0, startDelay: 100 }     // Low priority: no post-completion delay, 100ms pre-execution delay
+     *     1: { concurrency: 1, postDelay: 100, startDelay: 0 },    // Critical: Only 1 at a time, 100ms post-delay
+     *     2: { concurrency: 3, postDelay: 200, startDelay: 50 },   // Important: Up to 3 at a time, 200ms post-delay
+     *     3: { concurrency: 5, postDelay: 0, startDelay: 100 }     // Background: Up to 5 at a time, 100ms pre-delay
      *   },
      *   coalescing: {
      *     defaults: {
@@ -113,6 +116,7 @@ export class HoldMyTask extends EventEmitter<[never]> {
     pendingHeap: MinHeap;
     readyHeap: MinHeap;
     running: Set<any>;
+    runningByPriority: Map<any, any>;
     tasks: Map<any, any>;
     nextId: number;
     enqueueSeq: number;
@@ -448,6 +452,13 @@ export class HoldMyTask extends EventEmitter<[never]> {
      * @private
      */
     private schedulerTick;
+    /**
+     * Checks if a task can start based on both global and per-priority concurrency limits.
+     * @param {Object} task - The task to check
+     * @returns {boolean} True if the task can start, false if concurrency limits prevent it
+     * @private
+     */
+    private _canStartTask;
     /**
      * Handles an expired task by removing it and calling appropriate error handling.
      * @param {Object} item - The expired task item
