@@ -687,6 +687,31 @@ export class HoldMyTask extends EventEmitter<[never]> {
      * @returns {boolean} True if task exists, false otherwise
      */
     hasTask(id: string | number): boolean;
+    /**
+     * Get detailed information about the current queue state for debugging.
+     * @returns {Object} Comprehensive queue state information
+     */
+    inspect(): any;
+    /**
+     * Get information about active timers and scheduler state.
+     * @returns {Object} Timer and scheduler information
+     */
+    inspectTimers(): any;
+    /**
+     * Get a summary of all queued tasks by status.
+     * @returns {Object} Task summary by status
+     */
+    inspectTasks(): any;
+    /**
+     * Get detailed information about the scheduler state and timing.
+     * @returns {Object} Scheduler state information
+     */
+    inspectScheduler(): any;
+    /**
+     * Log comprehensive queue state to console for debugging.
+     * @param {boolean} [detailed=false] - Whether to include detailed task information
+     */
+    debugLog(detailed?: boolean): void;
 }
 import { EventEmitter } from "events";
 import { MinHeap } from "./utils.mjs";

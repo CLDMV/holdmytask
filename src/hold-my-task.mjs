@@ -1141,13 +1141,15 @@ export class HoldMyTask extends EventEmitter {
 					return null;
 				}
 				const groupInfo = this.findCoalescingGroupByTaskId(item.id);
-				return groupInfo ? {
-					coalescingKey: groupInfo.coalescingKey,
-					groupId: groupInfo.groupId,
-					representativeId: groupInfo.representativeId,
-					taskCount: groupInfo.groupTasks.length,
-					allTaskMetadata: groupInfo.groupTasks.map(t => ({ id: t.id, metadata: t.metadata }))
-				} : null;
+				return groupInfo
+					? {
+							coalescingKey: groupInfo.coalescingKey,
+							groupId: groupInfo.groupId,
+							representativeId: groupInfo.representativeId,
+							taskCount: groupInfo.groupTasks.length,
+							allTaskMetadata: groupInfo.groupTasks.map((t) => ({ id: t.id, metadata: t.metadata }))
+						}
+					: null;
 			}
 		};
 
@@ -1198,13 +1200,15 @@ export class HoldMyTask extends EventEmitter {
 						return null;
 					}
 					const groupInfo = this.findCoalescingGroupByTaskId(item.id);
-					return groupInfo ? {
-						coalescingKey: groupInfo.coalescingKey,
-						groupId: groupInfo.groupId,
-						representativeId: groupInfo.representativeId,
-						taskCount: groupInfo.groupTasks.length,
-						allTaskMetadata: groupInfo.groupTasks.map(t => ({ id: t.id, metadata: t.metadata }))
-					} : null;
+					return groupInfo
+						? {
+								coalescingKey: groupInfo.coalescingKey,
+								groupId: groupInfo.groupId,
+								representativeId: groupInfo.representativeId,
+								taskCount: groupInfo.groupTasks.length,
+								allTaskMetadata: groupInfo.groupTasks.map((t) => ({ id: t.id, metadata: t.metadata }))
+							}
+						: null;
 				},
 				enumerable: true
 			});
@@ -1397,11 +1401,11 @@ export class HoldMyTask extends EventEmitter {
 	 * @example
 	 * // Get all groups for a coalescing key
 	 * const groups = queue.getCoalescingGroup('ui.update');
-	 * 
+	 *
 	 * // Get specific group by ID
 	 * const group = queue.getCoalescingGroup('ui.update', '1');
 	 * console.log(group.tasks.size); // Number of tasks in group
-	 * 
+	 *
 	 * // Access individual task metadata
 	 * for (const [taskId, task] of group.tasks) {
 	 *   console.log(`Task ${taskId}:`, task.metadata);
@@ -1415,7 +1419,7 @@ export class HoldMyTask extends EventEmitter {
 
 		if (groupId === null) {
 			// Return all groups for the key
-			return groups.map(group => ({
+			return groups.map((group) => ({
 				coalescingKey: group.coalescingKey,
 				groupId: group.groupId,
 				representativeId: group.representativeId,
@@ -1434,7 +1438,7 @@ export class HoldMyTask extends EventEmitter {
 		}
 
 		// Find specific group by ID
-		const group = groups.find(g => g.groupId === groupId);
+		const group = groups.find((g) => g.groupId === groupId);
 		if (!group) {
 			return null;
 		}
@@ -1465,10 +1469,10 @@ export class HoldMyTask extends EventEmitter {
 	 * @example
 	 * // Get metadata from all groups for a key
 	 * const allMetadata = queue.getCoalescingGroupMetadata('ui.update');
-	 * 
+	 *
 	 * // Get metadata from specific group
 	 * const groupMetadata = queue.getCoalescingGroupMetadata('ui.update', '1');
-	 * 
+	 *
 	 * // Example output:
 	 * // [
 	 * //   { taskId: '123', metadata: { userId: 100, action: 'save' } },
@@ -1481,7 +1485,7 @@ export class HoldMyTask extends EventEmitter {
 			return [];
 		}
 
-		const targetGroups = groupId ? groups.filter(g => g.groupId === groupId) : groups;
+		const targetGroups = groupId ? groups.filter((g) => g.groupId === groupId) : groups;
 		const metadata = [];
 
 		for (const group of targetGroups) {
@@ -2361,5 +2365,397 @@ export class HoldMyTask extends EventEmitter {
 	 */
 	hasTask(id) {
 		return this.has(id);
+	}
+
+	// ========================================================================================
+	// DEBUG AND INSPECTION METHODS
+	// ========================================================================================
+
+	/**
+	 * Get detailed information about the current queue state for debugging.
+	 * @returns {Object} Comprehensive queue state information
+	 */
+	inspect() {
+		const now = this.now();
+
+		// Get all tasks from different queues
+		const pendingTasks = [...this.pendingHeap.heap].map((task) => ({
+			id: task.id,
+			priority: task.priority,
+			readyAt: task.readyAt,
+			readyIn: task.readyAt - now,
+			coalescingKey: task.coalescingKey,
+			metadata: task.metadata,
+			status: "pending"
+		}));
+
+		const readyTasks = [...this.readyHeap.heap].map((task) => ({
+			id: task.id,
+			priority: task.priority,
+			coalescingKey: task.coalescingKey,
+			metadata: task.metadata,
+			status: "ready"
+		}));
+
+		const runningTasks = Array.from(this.running).map((task) => ({
+			id: task.id,
+			priority: task.priority,
+			coalescingKey: task.coalescingKey,
+			metadata: task.metadata,
+			startedAt: task.startedAt,
+			runningFor: now - task.startedAt,
+			status: "running"
+		}));
+
+		// Get timer information
+		const timerInfo = this.inspectTimers();
+
+		// Get scheduler state
+		const schedulerState = {
+			isActive: this.isActive,
+			isPaused: !this.isActive,
+			smartScheduling: this.options.smartScheduling,
+			concurrency: this.options.concurrency,
+			currentConcurrency: this.running.size,
+			tick: this.options.tick,
+			nextActiveDelay: this.nextAvailableTime > now ? this.nextAvailableTime - now : null
+		};
+
+		// Get coalescing information
+		const coalescingInfo = {};
+		for (const [key, groups] of this.coalescingGroups.entries()) {
+			coalescingInfo[key] = {
+				groupCount: groups.size,
+				totalTasks: Array.from(groups.values()).reduce((sum, group) => sum + group.tasks.size, 0),
+				groups: Array.from(groups.entries()).map(([groupId, group]) => ({
+					groupId,
+					taskCount: group.tasks.size,
+					representativeId: group.representativeId,
+					tasks: Array.from(group.tasks.entries()).map(([_, task]) => ({
+						id: task.id,
+						metadata: task.metadata
+					}))
+				}))
+			};
+		}
+
+		return {
+			timestamp: now,
+			scheduler: schedulerState,
+			timers: timerInfo,
+			queues: {
+				pending: {
+					count: pendingTasks.length,
+					tasks: pendingTasks
+				},
+				ready: {
+					count: readyTasks.length,
+					tasks: readyTasks
+				},
+				running: {
+					count: runningTasks.length,
+					tasks: runningTasks
+				}
+			},
+			totals: {
+				totalTasks: pendingTasks.length + readyTasks.length + runningTasks.length,
+				pendingTasks: pendingTasks.length,
+				readyTasks: readyTasks.length,
+				runningTasks: runningTasks.length
+			},
+			coalescing: coalescingInfo,
+			delays: {
+				activeDelays: this.nextAvailableTime > now ? 1 : 0,
+				delayDetails:
+					this.nextAvailableTime > now
+						? [
+								{
+									priority: this.lastCompletedPriority,
+									expiresAt: this.nextAvailableTime,
+									expiresIn: this.nextAvailableTime - now
+								}
+							]
+						: []
+			}
+		};
+	}
+
+	/**
+	 * Get information about active timers and scheduler state.
+	 * @returns {Object} Timer and scheduler information
+	 */
+	inspectTimers() {
+		const now = this.now();
+
+		return {
+			schedulerInterval: {
+				id: this.schedulerInterval,
+				active: this.schedulerInterval !== null,
+				type: "interval"
+			},
+			schedulerTimeout: {
+				id: this.schedulerTimeout,
+				active: this.schedulerTimeout !== null,
+				type: "timeout"
+			},
+			nextScheduledRun: this.nextScheduledRun,
+			nextRunIn: this.nextScheduledRun ? this.nextScheduledRun - now : null,
+			smartScheduling: this.options.smartScheduling,
+			tickInterval: this.options.tick
+		};
+	}
+
+	/**
+	 * Get a summary of all queued tasks by status.
+	 * @returns {Object} Task summary by status
+	 */
+	inspectTasks() {
+		const now = this.now();
+
+		const summary = {
+			pending: [],
+			ready: [],
+			running: [],
+			byPriority: {},
+			byCoalescingKey: {},
+			total: 0
+		};
+
+		// Process pending tasks
+		[...this.pendingHeap.heap].forEach((task) => {
+			const taskInfo = {
+				id: task.id,
+				priority: task.priority,
+				readyAt: task.readyAt,
+				readyIn: task.readyAt - now,
+				coalescingKey: task.coalescingKey,
+				metadata: task.metadata
+			};
+			summary.pending.push(taskInfo);
+			summary.total++;
+
+			// Group by priority
+			if (!summary.byPriority[task.priority]) {
+				summary.byPriority[task.priority] = { pending: 0, ready: 0, running: 0 };
+			}
+			summary.byPriority[task.priority].pending++;
+
+			// Group by coalescing key
+			if (task.coalescingKey) {
+				if (!summary.byCoalescingKey[task.coalescingKey]) {
+					summary.byCoalescingKey[task.coalescingKey] = { pending: 0, ready: 0, running: 0 };
+				}
+				summary.byCoalescingKey[task.coalescingKey].pending++;
+			}
+		});
+
+		// Process ready tasks
+		[...this.readyHeap.heap].forEach((task) => {
+			const taskInfo = {
+				id: task.id,
+				priority: task.priority,
+				coalescingKey: task.coalescingKey,
+				metadata: task.metadata
+			};
+			summary.ready.push(taskInfo);
+			summary.total++;
+
+			// Group by priority
+			if (!summary.byPriority[task.priority]) {
+				summary.byPriority[task.priority] = { pending: 0, ready: 0, running: 0 };
+			}
+			summary.byPriority[task.priority].ready++;
+
+			// Group by coalescing key
+			if (task.coalescingKey) {
+				if (!summary.byCoalescingKey[task.coalescingKey]) {
+					summary.byCoalescingKey[task.coalescingKey] = { pending: 0, ready: 0, running: 0 };
+				}
+				summary.byCoalescingKey[task.coalescingKey].ready++;
+			}
+		});
+
+		// Process running tasks
+		Array.from(this.running).forEach((task) => {
+			const taskInfo = {
+				id: task.id,
+				priority: task.priority,
+				coalescingKey: task.coalescingKey,
+				metadata: task.metadata,
+				startedAt: task.startedAt,
+				runningFor: now - task.startedAt
+			};
+			summary.running.push(taskInfo);
+			summary.total++;
+
+			// Group by priority
+			if (!summary.byPriority[task.priority]) {
+				summary.byPriority[task.priority] = { pending: 0, ready: 0, running: 0 };
+			}
+			summary.byPriority[task.priority].running++;
+
+			// Group by coalescing key
+			if (task.coalescingKey) {
+				if (!summary.byCoalescingKey[task.coalescingKey]) {
+					summary.byCoalescingKey[task.coalescingKey] = { pending: 0, ready: 0, running: 0 };
+				}
+				summary.byCoalescingKey[task.coalescingKey].running++;
+			}
+		});
+
+		return summary;
+	}
+
+	/**
+	 * Get detailed information about the scheduler state and timing.
+	 * @returns {Object} Scheduler state information
+	 */
+	inspectScheduler() {
+		const now = this.now();
+
+		// Calculate next run time for different scenarios
+		let nextTaskTime = Infinity;
+		let nextTaskInfo = null;
+
+		// Check pending tasks
+		if (this.pendingHeap.size() > 0) {
+			const nextPending = this.pendingHeap.peek();
+			if (nextPending && nextPending.readyAt < nextTaskTime) {
+				nextTaskTime = nextPending.readyAt;
+				nextTaskInfo = {
+					id: nextPending.id,
+					priority: nextPending.priority,
+					readyAt: nextPending.readyAt,
+					source: "pending"
+				};
+			}
+		}
+
+		// Check ready tasks
+		if (this.readyHeap.size() > 0) {
+			const nextReady = this.readyHeap.peek();
+			if (nextReady) {
+				nextTaskTime = now;
+				nextTaskInfo = {
+					id: nextReady.id,
+					priority: nextReady.priority,
+					source: "ready"
+				};
+			}
+		}
+
+		// Check active delays
+		let delayInfo = null;
+		if (this.nextAvailableTime > now) {
+			delayInfo = {
+				priority: this.lastCompletedPriority,
+				expiresAt: this.nextAvailableTime
+			};
+		}
+
+		return {
+			timestamp: now,
+			isActive: this.isActive,
+			smartScheduling: this.options.smartScheduling,
+			concurrency: this.options.concurrency,
+			currentConcurrency: this.running.size,
+			availableSlots: this.options.concurrency - this.running.size,
+			timers: {
+				schedulerInterval: this.schedulerInterval,
+				schedulerTimeout: this.schedulerTimeout,
+				nextScheduledRun: this.nextScheduledRun,
+				nextRunIn: this.nextScheduledRun ? this.nextScheduledRun - now : null
+			},
+			nextTask: nextTaskInfo
+				? {
+						...nextTaskInfo,
+						readyIn: nextTaskTime - now,
+						canRunNow: nextTaskTime <= now && this.running.size < this.options.concurrency
+					}
+				: null,
+			delays: {
+				hasActiveDelays: this.nextAvailableTime > now,
+				count: this.nextAvailableTime > now ? 1 : 0,
+				nextExpiry: delayInfo
+					? {
+							...delayInfo,
+							expiresIn: delayInfo.expiresAt - now
+						}
+					: null
+			},
+			queueCounts: {
+				pending: this.pendingHeap.size(),
+				ready: this.readyHeap.size(),
+				running: this.running.size,
+				total: this.pendingHeap.size() + this.readyHeap.size() + this.running.size
+			}
+		};
+	}
+
+	/**
+	 * Log comprehensive queue state to console for debugging.
+	 * @param {boolean} [detailed=false] - Whether to include detailed task information
+	 */
+	debugLog(detailed = false) {
+		const inspection = this.inspect();
+
+		console.log("\n=== HoldMyTask Debug Information ===");
+		console.log(`Timestamp: ${new Date(inspection.timestamp).toISOString()}`);
+		console.log(`Status: ${inspection.scheduler.isActive ? "ACTIVE" : "PAUSED"}`);
+		console.log(`Smart Scheduling: ${inspection.scheduler.smartScheduling ? "ON" : "OFF"}`);
+		console.log(`Concurrency: ${inspection.scheduler.currentConcurrency}/${inspection.scheduler.concurrency}`);
+
+		console.log("\n--- Queue State ---");
+		console.log(`Total Tasks: ${inspection.totals.totalTasks}`);
+		console.log(`  Pending: ${inspection.totals.pendingTasks}`);
+		console.log(`  Ready: ${inspection.totals.readyTasks}`);
+		console.log(`  Running: ${inspection.totals.runningTasks}`);
+
+		console.log("\n--- Timer State ---");
+		console.log(`Interval: ${inspection.timers.schedulerInterval.active ? `Active (${inspection.timers.schedulerInterval.id})` : "None"}`);
+		console.log(`Timeout: ${inspection.timers.schedulerTimeout.active ? `Active (${inspection.timers.schedulerTimeout.id})` : "None"}`);
+		if (inspection.timers.nextRunIn !== null) {
+			console.log(`Next Run: ${inspection.timers.nextRunIn}ms`);
+		}
+
+		if (inspection.delays.activeDelays > 0) {
+			console.log("\n--- Active Delays ---");
+			inspection.delays.delayDetails.forEach((delay) => {
+				console.log(`  Priority ${delay.priority}: expires in ${delay.expiresIn}ms`);
+			});
+		}
+
+		if (Object.keys(inspection.coalescing).length > 0) {
+			console.log("\n--- Coalescing Groups ---");
+			Object.entries(inspection.coalescing).forEach(([key, info]) => {
+				console.log(`  ${key}: ${info.groupCount} groups, ${info.totalTasks} tasks`);
+			});
+		}
+
+		if (detailed) {
+			console.log("\n--- Detailed Task Information ---");
+			if (inspection.queues.pending.count > 0) {
+				console.log("\nPending Tasks:");
+				inspection.queues.pending.tasks.forEach((task) => {
+					console.log(`  ${task.id}: priority ${task.priority}, ready in ${task.readyIn}ms`);
+				});
+			}
+
+			if (inspection.queues.ready.count > 0) {
+				console.log("\nReady Tasks:");
+				inspection.queues.ready.tasks.forEach((task) => {
+					console.log(`  ${task.id}: priority ${task.priority}`);
+				});
+			}
+
+			if (inspection.queues.running.count > 0) {
+				console.log("\nRunning Tasks:");
+				inspection.queues.running.tasks.forEach((task) => {
+					console.log(`  ${task.id}: priority ${task.priority}, running for ${task.runningFor}ms`);
+				});
+			}
+		}
+
+		console.log("=====================================\n");
 	}
 }

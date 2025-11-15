@@ -480,6 +480,102 @@ const groupInfo = queue.getCoalescingGroup("user-action");
 const taskGroup = queue.findCoalescingGroupByTaskId(task1.id);
 ```
 
+### Debug and Inspection Methods
+
+For debugging queue behavior, troubleshooting scheduler issues, or monitoring queue state in production, HoldMyTask provides comprehensive inspection methods:
+
+#### Quick Debug Output
+
+```javascript
+// Log comprehensive queue state to console
+queue.debugLog(); // Basic summary
+queue.debugLog(true); // Detailed task information
+
+// Example output:
+// === HoldMyTask Debug Information ===
+// Timestamp: 2025-11-14T17:45:32.123Z
+// Status: ACTIVE
+// Smart Scheduling: ON
+// Concurrency: 2/5
+//
+// --- Queue State ---
+// Total Tasks: 7
+//   Pending: 3
+//   Ready: 2
+//   Running: 2
+//
+// --- Timer State ---
+// Interval: None
+// Timeout: Active (15)
+// Next Run: 1250ms
+```
+
+#### Detailed Inspection
+
+```javascript
+// Get comprehensive queue state
+const state = queue.inspect();
+console.log("Total tasks:", state.totals.totalTasks);
+console.log("Running tasks:", state.queues.running.tasks);
+console.log("Next scheduled run:", state.timers.nextRunIn, "ms");
+
+// Inspect just the tasks
+const tasks = queue.inspectTasks();
+console.log("Tasks by priority:", tasks.byPriority);
+console.log("Tasks by coalescing key:", tasks.byCoalescingKey);
+
+// Inspect scheduler state
+const scheduler = queue.inspectScheduler();
+console.log("Can run task now:", scheduler.nextTask?.canRunNow);
+console.log("Available slots:", scheduler.availableSlots);
+console.log("Active delays:", scheduler.delays.count);
+
+// Inspect timers specifically
+const timers = queue.inspectTimers();
+console.log("Scheduler interval active:", timers.schedulerInterval.active);
+console.log("Next run in:", timers.nextRunIn, "ms");
+```
+
+#### Inspection Methods
+
+- `inspect()` - Get comprehensive queue state including tasks, timers, scheduler, and coalescing information
+- `inspectTasks()` - Get detailed task information grouped by status, priority, and coalescing key
+- `inspectScheduler()` - Get scheduler state, timing information, and next task details
+- `inspectTimers()` - Get timer state and scheduling information
+- `debugLog(detailed?)` - Log formatted debug information to console
+
+**Use Cases:**
+
+- **Development**: Debug why tasks aren't running or understand queue behavior
+- **Production Monitoring**: Track queue health and performance metrics
+- **Troubleshooting**: Identify scheduler issues, timer problems, or concurrency bottlenecks
+- **Testing**: Verify queue state in automated tests
+
+```javascript
+// Example: Debug scheduler restart issue
+const queue = new HoldMyTask({ concurrency: 2 });
+
+// Add some tasks
+queue.enqueue(async () => "task1");
+queue.enqueue(async () => "task2", { priority: 2, start: 5000 });
+
+// Check initial state
+console.log("Initial state:");
+queue.debugLog();
+
+// Wait for drain
+queue.on("drain", () => {
+	console.log("After drain:");
+	queue.debugLog();
+
+	// Add new task
+	queue.enqueue(async () => "task3");
+
+	console.log("After adding new task:");
+	queue.debugLog();
+});
+```
+
 ### Events
 
 ```javascript
