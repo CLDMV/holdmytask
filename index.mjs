@@ -6,7 +6,7 @@
  *	@Email: <Shinrai@users.noreply.github.com>
  *	-----
  *	@Last modified by: Nate Hyson <CLDMV> (Shinrai@users.noreply.github.com)
- *	@Last modified time: 2025-11-09 16:22:22 -08:00 (1762734142)
+ *	@Last modified time: 2025-11-21 14:47:33 -08:00 (1763765253)
  *	-----
  *	@Copyright: Copyright (c) 2013-2025 Catalyzed Motivation Inc. All rights reserved.
  */
@@ -14,22 +14,62 @@
 // Development environment check (must happen before holdmytask imports)
 (async () => {
 	try {
-		await import("@cldmv/holdmytask/devcheck");
+		await import("./devcheck.mjs");
 	} catch {
 		// ignore
 	}
 })();
 
-// Export everything from main module
-export * from "@cldmv/holdmytask/main";
+/**
+ * Creates a HoldMyTask instance for task queue management
+ * @param {object} [options={}] - Configuration options
+ * @returns {Promise<object>} HoldMyTask instance
+ */
+export default async function createHoldMyTask(options = {}) {
+	// Dynamic import after environment check
+	const mod = await import("@cldmv/holdmytask/main");
+	const HoldMyTask = mod.HoldMyTask;
+	return new HoldMyTask(options);
+}
 
-// Default export
-export { HoldMyTask as default } from "@cldmv/holdmytask/main";
+/**
+ * Create a task queue instance
+ * @param {object} [options={}] - Configuration options
+ * @returns {Promise<object>} HoldMyTask instance
+ */
+export async function createQueue(options = {}) {
+	const mod = await import("@cldmv/holdmytask/main");
+	const HoldMyTask = mod.HoldMyTask;
+	return new HoldMyTask(options);
+}
 
-// Common queue system aliases
-export { HoldMyTask as queue } from "@cldmv/holdmytask/main";
-export { HoldMyTask as Queue } from "@cldmv/holdmytask/main";
-export { HoldMyTask as TaskManager } from "@cldmv/holdmytask/main";
-export { HoldMyTask as TaskQueue } from "@cldmv/holdmytask/main";
-export { HoldMyTask as QueueManager } from "@cldmv/holdmytask/main";
-export { HoldMyTask as TaskProcessor } from "@cldmv/holdmytask/main";
+/**
+ * Create a task manager instance
+ * @param {object} [options={}] - Configuration options
+ * @returns {Promise<object>} HoldMyTask instance
+ */
+export async function createTaskManager(options = {}) {
+	const mod = await import("@cldmv/holdmytask/main");
+	const HoldMyTask = mod.HoldMyTask;
+	return new HoldMyTask(options);
+}
+
+/**
+ * Create a task processor instance
+ * @param {object} [options={}] - Configuration options
+ * @returns {Promise<object>} HoldMyTask instance
+ */
+export async function createTaskProcessor(options = {}) {
+	const mod = await import("@cldmv/holdmytask/main");
+	const HoldMyTask = mod.HoldMyTask;
+	return new HoldMyTask(options);
+}
+
+// Named export aliases
+export { createHoldMyTask as HoldMyTask };
+export { createQueue as queue };
+export { createQueue as Queue };
+export { createTaskManager as TaskManager };
+export { createQueue as TaskQueue };
+export { createQueue as QueueManager };
+export { createTaskProcessor as TaskProcessor };

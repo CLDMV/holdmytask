@@ -6,7 +6,7 @@
  *	@Email: <Shinrai@users.noreply.github.com>
  *	-----
  *	@Last modified by: Nate Hyson <CLDMV> (Shinrai@users.noreply.github.com)
- *	@Last modified time: 2025-11-09 16:22:36 -08:00 (1762734156)
+ *	@Last modified time: 2025-11-21 14:51:16 -08:00 (1763765476)
  *	-----
  *	@Copyright: Copyright (c) 2013-2025 Catalyzed Motivation Inc. All rights reserved.
  */
@@ -54,7 +54,7 @@ if (existsSync(srcPath) && !isCI) {
 		console.error("     export NODE_ENV=development");
 		console.error("     export NODE_OPTIONS=--conditions=development");
 		console.error("");
-		console.error("💡 This ensures slothlet loads from src/ instead of dist/ for development.");
+		console.error("💡 This ensures this module loads from src/ instead of dist/ for development.");
 		console.error("🚀 CI environments automatically skip this check.");
 		process.exit(1);
 	}
