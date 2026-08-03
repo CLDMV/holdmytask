@@ -1,13 +1,19 @@
 /**
+ * Comprehensive Timing Test: Find the Breaking Point
+ *
+ * This test systematically varies device command delays to find exactly
+ * when the coalescing race condition becomes a problem.
+ */
+/**
  * Device with configurable delays
  */
-export class ConfigurableDelayDevice {
-    constructor(initialVolume?: number, commandDelay?: number, infoDelay?: number);
+declare class ConfigurableDelayDevice {
     volume: number;
     commandCount: number;
     infoRequestCount: number;
     commandDelay: number;
     infoDelay: number;
+    constructor(initialVolume?: number, commandDelay?: number, infoDelay?: number);
     volumeCommand(change: any): Promise<{
         commandId: number;
         oldVolume: number;
@@ -32,13 +38,13 @@ export class ConfigurableDelayDevice {
 /**
  * Controller for timing tests
  */
-export class TimingTestController {
-    constructor(device: any, coalescingWindowDuration?: number);
+declare class TimingTestController {
     device: any;
     coalescingWindowDuration: number;
-    queue: HoldMyTask;
+    queue: any;
     commandCounter: number;
     results: any[];
+    constructor(device: any, coalescingWindowDuration?: number);
     volumeUp(amount?: number): Promise<{
         commandId: number;
         userActionTime: number;
@@ -66,7 +72,7 @@ export class TimingTestController {
 /**
  * Test different device delays to find the breaking point
  */
-export function findBreakingPoint(): Promise<{
+declare function findBreakingPoint(): Promise<{
     description: string | number;
     commandDelay: string | number;
     coalescingWindow: string | number;
@@ -79,5 +85,5 @@ export function findBreakingPoint(): Promise<{
     deviceInfoRequests: any;
     coalescingEfficiency: number;
 }[]>;
-import { HoldMyTask } from "../../index.mjs";
+export { ConfigurableDelayDevice, TimingTestController, findBreakingPoint };
 //# sourceMappingURL=breaking-point-analysis.d.mts.map

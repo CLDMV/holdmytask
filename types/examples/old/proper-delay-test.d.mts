@@ -1,8 +1,16 @@
-export class SimpleDevice {
-    constructor(initialVolume?: number);
+/**
+ * Test with Proper Queue Delays
+ *
+ * This tests the scenario you described:
+ * - Volume commands with 100ms delay (after completion)
+ * - Info requests with 500ms delay (after completion)
+ * - This should allow 2 volume updates to complete before info request
+ */
+declare class SimpleDevice {
     volume: number;
     commandCount: number;
     infoRequestCount: number;
+    constructor(initialVolume?: number);
     volumeCommand(change: any): Promise<{
         commandId: number;
         oldVolume: number;
@@ -25,11 +33,11 @@ export class SimpleDevice {
 /**
  * Controller using proper queue delays
  */
-export class ProperDelayController {
-    constructor(device: any);
+declare class ProperDelayController {
     device: any;
-    queue: HoldMyTask;
+    queue: any;
     commandCounter: number;
+    constructor(device: any);
     volumeUp(amount?: number): Promise<{
         commandId: number;
         startTime: number;
@@ -51,7 +59,7 @@ export class ProperDelayController {
 /**
  * Test the proper delay scenario
  */
-export function testProperDelays(): Promise<{
+declare function testProperDelays(): Promise<{
     totalAccurate: number;
     totalTests: number;
     accuracyRate: number;
@@ -59,5 +67,5 @@ export function testProperDelays(): Promise<{
     deviceInfoRequests: number;
     finalVolume: number;
 }>;
-import { HoldMyTask } from "../../index.mjs";
+export { SimpleDevice, ProperDelayController, testProperDelays };
 //# sourceMappingURL=proper-delay-test.d.mts.map

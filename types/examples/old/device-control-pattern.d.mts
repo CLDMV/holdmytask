@@ -1,11 +1,18 @@
-export class DeviceController extends EventEmitter<[never]> {
-    constructor();
-    queue: HoldMyTask;
+/**
+ * Example: Device Control Pattern with Coalescing
+ *
+ * This demonstrates how to handle rapid user input (volume commands)
+ * that trigger update info commands, ensuring final state consistency.
+ */
+import { EventEmitter } from "events";
+declare class DeviceController extends EventEmitter {
+    queue: any;
     deviceState: {
         volume: number;
         lastUpdated: number;
     };
     pendingVolumeChanges: Map<any, any>;
+    constructor();
     /**
      * User command: Volume Up
      * This accumulates changes and triggers coalesced update
@@ -36,9 +43,9 @@ export class DeviceController extends EventEmitter<[never]> {
     };
     destroy(): void;
 }
-export class AdvancedDeviceController extends DeviceController {
+declare function demonstrateDeviceControl(): Promise<void>;
+declare class AdvancedDeviceController extends DeviceController {
+    volumeUp(amount?: number): Promise<any>;
 }
-export function demonstrateDeviceControl(): Promise<void>;
-import { EventEmitter } from "events";
-import { HoldMyTask } from "../../index.mjs";
+export { DeviceController, AdvancedDeviceController, demonstrateDeviceControl };
 //# sourceMappingURL=device-control-pattern.d.mts.map
