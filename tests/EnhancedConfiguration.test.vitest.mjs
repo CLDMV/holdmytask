@@ -1,6 +1,6 @@
 /**
  *	@Project: @cldmv/holdmytask
- *	@Filename: /tests/EnhancedConfiguration.vest.mjs
+ *	@Filename: /tests/EnhancedConfiguration.test.vitest.mjs
  *	@Date: 2025-01-23
  *	@Author: Nate Hyson <CLDMV>
  *	@Email: <Shinrai@users.noreply.github.com>
