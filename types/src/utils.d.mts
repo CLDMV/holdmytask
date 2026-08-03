@@ -14,7 +14,9 @@
  * A min-heap implementation with custom comparison function.
  * Maintains the heap property where parent nodes are smaller than their children.
  */
-export class MinHeap {
+export declare class MinHeap {
+    heap: any[];
+    compare: Function;
     /**
      * Creates a new MinHeap with a custom comparison function.
      * @param {Function} compare - Comparison function that returns negative if a < b, positive if a > b, 0 if equal
@@ -23,8 +25,6 @@ export class MinHeap {
      * const heap = new MinHeap((a, b) => a.priority - b.priority);
      */
     constructor(compare: Function);
-    heap: any[];
-    compare: Function;
     /**
      * Adds an item to the heap, maintaining heap property.
      * @param {*} item - The item to add to the heap

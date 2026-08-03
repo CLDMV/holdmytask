@@ -1,12 +1,21 @@
 /**
+ * Proper Coalescing Test: Volume Commands with Updates
+ *
+ * Tests 5 volume increase commands, each with:
+ * - Volume command (immediate execution)
+ * - Update command (coalesced with key "volume.up")
+ *
+ * Uses proper queue timing controls instead of device simulation.
+ */
+/**
  * Simple volume system that tracks state
  */
-export class VolumeSystem {
-    constructor(initialVolume?: number);
+declare class VolumeSystem {
     volume: number;
     commandCount: number;
     updateCount: number;
     log: any[];
+    constructor(initialVolume?: number);
     /**
      * Execute a volume command (changes the actual volume)
      */
@@ -38,11 +47,11 @@ export class VolumeSystem {
 /**
  * Controller that implements volume commands with coalesced updates
  */
-export class VolumeController {
-    constructor(volumeSystem: any, queueOptions?: {});
+declare class VolumeController {
     volumeSystem: any;
-    queue: HoldMyTask;
+    queue: any;
     commandCounter: number;
+    constructor(volumeSystem: any, queueOptions?: {});
     /**
      * Volume up command with coalesced update
      */
@@ -63,7 +72,7 @@ export class VolumeController {
 /**
  * Test different timing scenarios
  */
-export function testVolumeCoalescing(): Promise<{
+declare function testVolumeCoalescing(): Promise<{
     scenario: string;
     totalDuration: number;
     accurateCommands: number;
@@ -75,5 +84,5 @@ export function testVolumeCoalescing(): Promise<{
     updateCommandsExecuted: number;
     coalescingEfficiency: number;
 }[]>;
-import { HoldMyTask } from "../../index.mjs";
+export { VolumeSystem, VolumeController, testVolumeCoalescing };
 //# sourceMappingURL=volume-coalescing-test.d.mts.map

@@ -1,11 +1,21 @@
 /**
+ * Pseudo Device System for Testing Coalescing Behavior
+ *
+ * This simulates a real device that:
+ * 1. Has its own internal state (volume level)
+ * 2. Responds to volume up/down commands
+ * 3. Responds to info requests with current state
+ * 4. Has realistic communication delays
+ */
+import { EventEmitter } from "events";
+/**
  * Simulated device that tracks its own state
  */
-export class PseudoDevice {
-    constructor(initialVolume?: number);
+declare class PseudoDevice {
     volume: number;
     commandCount: number;
     infoRequestCount: number;
+    constructor(initialVolume?: number);
     /**
      * Device receives a volume change command
      */
@@ -37,12 +47,12 @@ export class PseudoDevice {
 /**
  * Controller that uses the queue system to communicate with the device
  */
-export class DeviceController extends EventEmitter<[never]> {
-    constructor(device: any, queueOptions?: {});
+declare class DeviceController extends EventEmitter {
     device: any;
-    queue: HoldMyTask;
+    queue: any;
     optimisticVolume: any;
     pendingChanges: number;
+    constructor(device: any, queueOptions?: {});
     /**
      * User calls volumeUp - this should update device and then get fresh info
      */
@@ -65,7 +75,7 @@ export class DeviceController extends EventEmitter<[never]> {
 /**
  * Test scenario: Rapid volume commands
  */
-export function testRapidVolumeCommands(): Promise<{
+declare function testRapidVolumeCommands(): Promise<{
     expectedVolume: number;
     actualVolume: number;
     totalCommands: number;
@@ -75,7 +85,6 @@ export function testRapidVolumeCommands(): Promise<{
 /**
  * Test different coalescing configurations
  */
-export function testCoalescingConfigurations(): Promise<void>;
-import { EventEmitter } from "events";
-import { HoldMyTask } from "../../index.mjs";
+declare function testCoalescingConfigurations(): Promise<void>;
+export { PseudoDevice, DeviceController, testRapidVolumeCommands, testCoalescingConfigurations };
 //# sourceMappingURL=device-simulation.d.mts.map

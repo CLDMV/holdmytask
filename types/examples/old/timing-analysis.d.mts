@@ -1,9 +1,17 @@
 /**
+ * Detailed Analysis of Coalescing Timing Issues
+ *
+ * This test demonstrates the fundamental timing problem with coalescing:
+ * Info requests get coalesced and executed before all the volume commands they're supposed to reflect.
+ */
+import { DeviceController } from "./device-simulation.mjs";
+/**
  * Enhanced controller that logs detailed timing information
  */
-export class TimingAnalysisController extends DeviceController {
+declare class TimingAnalysisController extends DeviceController {
     commandCounter: number;
     timingLog: any[];
+    constructor(device: any, queueOptions?: {});
     volumeUp(amount?: number): Promise<{
         commandId: number;
         startTime: number;
@@ -22,9 +30,10 @@ export class TimingAnalysisController extends DeviceController {
 /**
  * Test with reference counting approach
  */
-export class ReferenceCountingController extends DeviceController {
+declare class ReferenceCountingController extends DeviceController {
     pendingVolumeCommands: Map<any, any>;
     commandCounter: number;
+    constructor(device: any, queueOptions?: {});
     volumeUp(amount?: number): Promise<{
         commandId: number;
         volumeResult: any;
@@ -34,6 +43,6 @@ export class ReferenceCountingController extends DeviceController {
         accurate: boolean;
     }>;
 }
-export function analyzeTimingIssues(): Promise<void>;
-import { DeviceController } from "./device-simulation.mjs";
+declare function analyzeTimingIssues(): Promise<void>;
+export { TimingAnalysisController, ReferenceCountingController, analyzeTimingIssues };
 //# sourceMappingURL=timing-analysis.d.mts.map

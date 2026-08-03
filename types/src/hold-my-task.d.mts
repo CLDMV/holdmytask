@@ -1,96 +1,69 @@
 /**
+ *	@Project: @cldmv/holdmytask
+ *	@Filename: /src/hold-my-task.mjs
+ *	@Date: 2025-11-08 17:43:19 -08:00 (1762652599)
+ *	@Author: Nate Hyson <CLDMV>
+ *	@Email: <Shinrai@users.noreply.github.com>
+ *	-----
+ *	@Last modified by: Nate Hyson <CLDMV> (Shinrai@users.noreply.github.com)
+ *	@Last modified time: 2025-11-10 22:14:06 -08:00 (1762841646)
+ *	-----
+ *	@Copyright: Copyright (c) 2013-2025 Catalyzed Motivation Inc. All rights reserved.
+ */
+import { EventEmitter } from "events";
+import { MinHeap } from "./utils.mjs";
+/**
  * A sophisticated task queue that manages task execution with priorities, delays, and concurrency control.
  * Tasks can be scheduled with timestamps, priorities, and completion delays between tasks of the same priority.
  * Supports both callback and promise-based APIs with comprehensive lifecycle management.
  * @extends EventEmitter
  */
-export class HoldMyTask extends EventEmitter<[never]> {
-    /**
-     * Creates a new HoldMyTask queue instance.
-     * @param {Object} [options={}] - Configuration options for the task queue
-     * @param {number} [options.concurrency=1] - Maximum number of tasks to run concurrently
-     * @param {number} [options.tick=25] - Scheduler tick interval in milliseconds
-     * @param {boolean} [options.autoStart=true] - Whether to automatically start the scheduler
-     * @param {number} [options.defaultPriority=0] - Default priority for tasks (higher numbers = higher priority)
-     * @param {number} [options.maxQueue=Infinity] - Maximum number of tasks that can be queued
-     * @param {Object} [options.delays={}] - DEPRECATED: Use priorities[priority].delay instead. Legacy priority-to-delay mapping (auto-converted to priorities)
-     * @param {boolean} [options.smartScheduling=true] - Use dynamic timeouts instead of constant polling for better performance
-     * @param {number} [options.tick=25] - Polling interval in milliseconds when smartScheduling is disabled
-     * @param {number} [options.healingInterval=5000] - Self-healing check interval in milliseconds (smart scheduling only)
-     * @param {Object} [options.priorities={}] - Priority-specific default configurations
-     * @param {number} [options.priorities[priority].concurrency] - Maximum concurrent tasks for this priority (defaults to global concurrency limit)
-     * @param {number} [options.priorities[priority].postDelay] - Delay after task completion before next task of same priority
-     * @param {number} [options.priorities[priority].startDelay] - Delay before task execution (pre-execution delay)
-     * @param {Object} [options.coalescing] - Enhanced coalescing configuration (preferred over flat options)
-     * @param {Object} [options.coalescing.defaults] - Default coalescing settings for all keys
-     * @param {number} [options.coalescing.defaults.windowDuration=200] - Default window duration in milliseconds
-     * @param {number} [options.coalescing.defaults.maxDelay=1000] - Default maximum delay in milliseconds
-     * @param {number} [options.coalescing.defaults.postDelay] - Default post-completion delay in milliseconds
-     * @param {number} [options.coalescing.defaults.startDelay] - Default pre-execution delay in milliseconds
-     * @param {number} [options.coalescing.defaults.delay] - DEPRECATED: Use postDelay instead
-     * @param {number} [options.coalescing.defaults.start] - DEPRECATED: Use startDelay instead
-     * @param {boolean} [options.coalescing.defaults.resolveAllPromises=true] - Default promise resolution behavior
-     * @param {boolean} [options.coalescing.defaults.multipleCallbacks=false] - Default callback execution behavior
-     * @param {Object} [options.coalescing.keys] - Per-coalescingKey configuration overrides (windowDuration, maxDelay, postDelay, startDelay, etc.)
-     * @param {number} [options.coalescingWindowDuration=200] - DEPRECATED: Use coalescing.defaults.windowDuration instead
-     * @param {number} [options.coalescingMaxDelay=1000] - DEPRECATED: Use coalescing.defaults.maxDelay instead
-     * @param {boolean} [options.coalescingMultipleCallbacks=false] - DEPRECATED: Use coalescing.defaults.multipleCallbacks instead
-     * @param {boolean} [options.coalescingResolveAllPromises=true] - DEPRECATED: Use coalescing.defaults.resolveAllPromises instead
-     * @example
-     * // Enhanced configuration with priority defaults and extended coalescing
-     * const queue = new HoldMyTask({
-     *   concurrency: 8, // Global maximum: 8 total tasks across all priorities
-     *   delays: { 0: 1000, 1: 500 },
-     *   priorities: {
-     *     1: { concurrency: 1, postDelay: 100, startDelay: 0 },    // Critical: Only 1 at a time, 100ms post-delay
-     *     2: { concurrency: 3, postDelay: 200, startDelay: 50 },   // Important: Up to 3 at a time, 200ms post-delay
-     *     3: { concurrency: 5, postDelay: 0, startDelay: 100 }     // Background: Up to 5 at a time, 100ms pre-delay
-     *   },
-     *   coalescing: {
-     *     defaults: {
-     *       windowDuration: 200,
-     *       maxDelay: 1000,
-     *       postDelay: 50,
-     *       startDelay: 25,
-     *       resolveAllPromises: true
-     *     },
-     *     keys: {
-     *       'ui.update': { windowDuration: 100, maxDelay: 500, postDelay: 25, startDelay: 0 },
-     *       'api.batch': { windowDuration: 1000, maxDelay: 5000, postDelay: 100, startDelay: 200 },
-     *       'device.control': { windowDuration: 50, maxDelay: 200, delay: 10, start: 5 }
-     *     }
-     *   }
-     * });
-     *
-     * @example
-     * // Backward compatible (deprecated but still supported)
-     * const legacyQueue = new HoldMyTask({
-     *   coalescingWindowDuration: 1500,
-     *   coalescingMaxDelay: 3000,
-     *   coalescingResolveAllPromises: true
-     * });
-     */
-    /**
-     * Transforms delay properties for backwards compatibility.
-     * Converts 'start' -> 'startDelay' and 'delay' -> 'postDelay' while preserving new names.
-     * @param {Object} config - Configuration object that may contain old or new property names
-     * @param {HoldMyTask} [instance] - Optional instance to emit deprecation warnings on
-     * @returns {Object} Transformed configuration with new property names
-     * @private
-     * @internal
-     */
-    private static _transformDelayProperties;
-    /**
-     * Internal convenience method to create a new HoldMyTask instance with async initialization.
-     * This enables event listeners to be attached before validation errors can occur.
-     * @param {Object} [options={}] - Configuration options
-     * @returns {Promise<HoldMyTask>} Promise that resolves to the initialized instance
-     * @private
-     * @example
-     * // Internal usage - prefer new HoldMyTask({ sync: false }) for public API
-     * const queue = await HoldMyTask._create({ maxQueue: 100 });
-     */
-    private static _create;
+export declare class HoldMyTask extends EventEmitter {
+    _syncMode: boolean | undefined;
+    options: {
+        constructor: Function;
+        toString(): string;
+        toLocaleString(): string;
+        valueOf(): Object;
+        hasOwnProperty(v: PropertyKey): boolean;
+        isPrototypeOf(v: Object): boolean;
+        propertyIsEnumerable(v: PropertyKey): boolean;
+        concurrency: number;
+        tick: number;
+        autoStart: boolean;
+        defaultPriority: number;
+        maxQueue: any;
+        priorities: {};
+        smartScheduling: boolean;
+        healingInterval: number;
+        coalescing: {
+            defaults: Object;
+            keys: {};
+        };
+        coalescingWindowDuration: any;
+        coalescingMaxDelay: any;
+        coalescingMultipleCallbacks: any;
+        coalescingResolveAllPromises: any;
+    } | undefined;
+    pendingHeap: MinHeap | undefined;
+    readyHeap: MinHeap | undefined;
+    running: Set<any> | undefined;
+    runningByPriority: Map<any, any> | undefined;
+    tasks: Map<any, any> | undefined;
+    nextId: number | undefined;
+    enqueueSeq: number | undefined;
+    isActive: boolean | undefined;
+    destroyed: boolean | undefined;
+    lastCompletedPriority: any;
+    nextAvailableTime: any;
+    schedulerTimeout: number | null | undefined;
+    healingInterval: number | null | undefined;
+    lastSchedulerRun: number | undefined;
+    intervalId: number | null | undefined;
+    coalescingGroups: Map<any, any> | undefined;
+    coalescingRepresentatives: Map<any, any> | undefined;
+    nextGroupId: number | undefined;
+    timeoutId: number | undefined;
     constructor(options?: {});
     /**
      * Synchronous initialization for backwards compatibility
@@ -98,7 +71,6 @@ export class HoldMyTask extends EventEmitter<[never]> {
      * @param {Object} options - Configuration options
      */
     private _initializeSync;
-    _syncMode: boolean;
     /**
      * Asynchronous initialization for modern usage
      * @private
@@ -112,25 +84,17 @@ export class HoldMyTask extends EventEmitter<[never]> {
      * @param {Object} options - Configuration options
      */
     private _initializeCommon;
-    options: any;
-    pendingHeap: MinHeap;
-    readyHeap: MinHeap;
-    running: Set<any>;
-    runningByPriority: Map<any, any>;
-    tasks: Map<any, any>;
-    nextId: number;
-    enqueueSeq: number;
-    isActive: boolean;
-    destroyed: boolean;
-    lastCompletedPriority: any;
-    nextAvailableTime: any;
-    schedulerTimeout: NodeJS.Timeout;
-    healingInterval: NodeJS.Timeout;
-    lastSchedulerRun: number;
-    intervalId: NodeJS.Timeout;
-    coalescingGroups: Map<any, any>;
-    coalescingRepresentatives: Map<any, any>;
-    nextGroupId: number;
+    /**
+     * Internal convenience method to create a new HoldMyTask instance with async initialization.
+     * This enables event listeners to be attached before validation errors can occur.
+     * @param {Object} [options={}] - Configuration options
+     * @returns {Promise<HoldMyTask>} Promise that resolves to the initialized instance
+     * @private
+     * @example
+     * // Internal usage - prefer new HoldMyTask({ sync: false }) for public API
+     * const queue = await HoldMyTask._create({ maxQueue: 100 });
+     */
+    private static _create;
     /**
      * Adds a task to the queue for execution. Supports both callback and promise-based APIs.
      * @param {Function} task - The task function to execute. Can be sync or async.
@@ -176,7 +140,7 @@ export class HoldMyTask extends EventEmitter<[never]> {
      * queue.enqueue(checkDeviceStatus, callback1, { coalescingKey: "device-123", coalescingWindowDuration: 1000 });
      * queue.enqueue(checkDeviceStatus, callback2, { coalescingKey: "device-123" }); // Gets coalesced with first
      */
-    enqueue(task: Function, optionsOrCallback?: Function | any, options?: {
+    enqueue(task: Function, optionsOrCallback?: Function | Object, options?: {
         id?: string | number;
         priority?: number;
         timestamp?: number;
@@ -192,109 +156,7 @@ export class HoldMyTask extends EventEmitter<[never]> {
         coalescingMultipleCallbacks?: boolean;
         coalescingResolveAllPromises?: boolean;
         metadata?: any;
-    }): Promise<any> | any;
-    /**
-     * Handles tasks with coalescingKey through the coalescing system.
-     * @private
-     * @internal
-     * @param {string} id - Task ID
-     * @param {Function} task - Task function
-     * @param {Function|null} callback - Callback function (null for promise API)
-     * @param {Object} options - Task options
-     * @param {number} now - Current timestamp
-     * @returns {Promise|Object} Promise or task handle
-     */
-    private _handleCoalescingTask;
-    /**
-     * Finds a compatible coalescing group for a new task.
-     * @private
-     * @internal
-     * @param {string} coalescingKey - The coalescing key
-     * @param {number} now - Current timestamp
-     * @param {number} windowEnd - End of new task's coalescing window
-     * @param {number} mustRunBy - New task's mustRunBy deadline
-     * @returns {Object|null} Compatible coalescing group or null
-     */
-    private _findCompatibleCoalescingGroup;
-    /**
-     * Creates a new coalescing group with a representative task in the main queue.
-     * @private
-     * @internal
-     * @param {string} coalescingKey - The coalescing key
-     * @param {Object} taskItem - The first task item for this group
-     * @param {number} windowEnd - End of coalescing window
-     * @param {number} mustRunBy - Latest execution deadline
-     * @param {boolean} multipleCallbacks - Whether to call multiple callbacks
-     * @param {boolean} resolveAllPromises - Whether to resolve all promises with same result
-     * @returns {Object} The created coalescing group
-     */
-    private _createCoalescingGroup;
-    /**
-     * Adds a task to an existing coalescing group, updating the representative if needed.
-     * @private
-     * @internal
-     * @param {Object} group - The existing coalescing group
-     * @param {Object} taskItem - The new task item to add
-     * @param {number} windowEnd - End of coalescing window
-     * @param {number} mustRunBy - Latest execution deadline
-     * @param {number} now - Current timestamp
-     * @returns {void}
-     */
-    private _addToCoalescingGroup;
-    /**
-     * Creates the representative task function that manages coalesced task execution.
-     * @private
-     * @internal
-     * @param {string} coalescingKey - The coalescing key
-     * @param {string} groupId - The group ID
-     * @returns {Function} The representative task function
-     */
-    private _createCoalescingRepresentativeTask;
-    /**
-     * Resolves all callbacks/promises in a coalescing group.
-     * @private
-     * @internal
-     * @param {Object} group - The coalescing group
-     * @param {Error|null} error - Error if task failed
-     * @param {*} result - Result if task succeeded
-     * @returns {void}
-     */
-    private _resolveCoalescingGroup;
-    /**
-     * Cancels a specific task within a coalescing group.
-     * @private
-     * @internal
-     * @param {string} taskId - ID of task to cancel
-     * @param {string} coalescingKey - The coalescing key
-     * @param {string} reason - Cancellation reason
-     * @returns {void}
-     */
-    private _cancelCoalescingTask;
-    /**
-     * Cleans up a coalescing group after completion or cancellation.
-     * @private
-     * @internal
-     * @param {string} coalescingKey - The coalescing key
-     * @param {string} groupId - The group ID to clean up
-     * @returns {void}
-     */
-    private _cleanupCoalescingGroup;
-    /**
-     * Rebuilds the heap structures to reflect updated priorities/timing.
-     * @private
-     * @internal
-     * @returns {void}
-     */
-    private _rebuildHeaps;
-    /**
-     * Creates a task handle for both regular and coalescing tasks.
-     * @private
-     * @internal
-     * @param {Object} item - The task item
-     * @param {Function|null} callback - Callback function
-     * @returns {Promise|Object} Promise or task control object
-     */
-    private _createTaskHandle;
+    }): Promise<any> | Object;
     /**
      * Cancels a pending task by ID.
      * @param {string} id - The task ID to cancel
@@ -377,7 +239,7 @@ export class HoldMyTask extends EventEmitter<[never]> {
      *   console.log(`Task ${taskId}:`, task.metadata);
      * }
      */
-    getCoalescingGroup(coalescingKey: string, groupId?: string): any | any[] | null;
+    getCoalescingGroup(coalescingKey: string, groupId?: string): Object | any[] | null;
     /**
      * Gets metadata for all tasks in a coalescing group.
      * @param {string} coalescingKey - The coalescing key
@@ -408,7 +270,7 @@ export class HoldMyTask extends EventEmitter<[never]> {
      * //   'api.batch': { groupCount: 1, totalTasks: 3 }
      * // }
      */
-    getCoalescingGroupsSummary(): any;
+    getCoalescingGroupsSummary(): Object;
     /**
      * Finds the coalescing group that contains a specific task ID.
      * @param {string|number} taskId - The task ID to search for
@@ -421,7 +283,7 @@ export class HoldMyTask extends EventEmitter<[never]> {
      *   console.log('Other tasks in group:', groupInfo.groupTasks.length);
      * }
      */
-    findCoalescingGroupByTaskId(taskId: string | number): any | null;
+    findCoalescingGroupByTaskId(taskId: string | number): Object | null;
     /**
      * Destroys the queue, canceling all tasks and stopping the scheduler.
      * Once destroyed, the queue cannot be reused.
@@ -439,14 +301,6 @@ export class HoldMyTask extends EventEmitter<[never]> {
      */
     now(): number;
     /**
-     * Schedules the next scheduler tick based on when tasks become ready.
-     * @returns {void}
-     * @private
-     * @internal
-     */
-    private _scheduleNextTick;
-    timeoutId: NodeJS.Timeout;
-    /**
      * Main scheduler tick that moves ready tasks and starts execution.
      * @returns {void}
      * @private
@@ -459,22 +313,6 @@ export class HoldMyTask extends EventEmitter<[never]> {
      * @private
      */
     private _canStartTask;
-    /**
-     * Handles an expired task by removing it and calling appropriate error handling.
-     * @param {Object} item - The expired task item
-     * @returns {void}
-     * @private
-     * @internal
-     */
-    private _expireTask;
-    /**
-     * Starts execution of a ready task.
-     * @param {Object} item - The task item to execute
-     * @returns {Promise<void>}
-     * @private
-     * @internal
-     */
-    private _startTask;
     /**
      * Clears all active timers (intervals and timeouts).
      * @returns {void}
@@ -582,7 +420,7 @@ export class HoldMyTask extends EventEmitter<[never]> {
      *   delay: 30  // Still accepts old property names for backwards compatibility
      * });
      */
-    getCoalescingConfig(coalescingKey: string, taskOptions?: any): any;
+    getCoalescingConfig(coalescingKey: string, taskOptions?: Object): Object;
     /**
      * Get all configured coalescing keys and their configurations.
      * @returns {Object} Map of coalescingKey to configuration
@@ -594,7 +432,7 @@ export class HoldMyTask extends EventEmitter<[never]> {
      *   console.log(`${key}: ${config.windowDuration}ms window, ${config.maxDelay}ms max delay, ${config.postDelay}ms post-completion delay, ${config.startDelay}ms pre-execution delay`);
      * });
      */
-    getCoalescingConfigurations(): any;
+    getCoalescingConfigurations(): Object;
     /**
      * Configure default settings for specific priorities dynamically.
      * @param {number} priority - The priority level to configure
@@ -640,7 +478,7 @@ export class HoldMyTask extends EventEmitter<[never]> {
      *   start: 10
      * });
      */
-    getPriorityConfig(priority: number, taskOptions?: any): any;
+    getPriorityConfig(priority: number, taskOptions?: Object): Object;
     /**
      * Get all configured priorities and their configurations.
      * @returns {Object} Map of priority to configuration
@@ -652,7 +490,7 @@ export class HoldMyTask extends EventEmitter<[never]> {
      *   console.log(`Priority ${priority}: ${config.delay}ms delay, ${config.start}ms start delay`);
      * });
      */
-    getPriorityConfigurations(): any;
+    getPriorityConfigurations(): Object;
     /**
      * Alias for destroy() method for common queue system naming.
      * @returns {void}
@@ -665,7 +503,7 @@ export class HoldMyTask extends EventEmitter<[never]> {
      * @param {Object} options - Task options (if callback provided as second parameter)
      * @returns {Promise|TaskHandle} Promise if no callback provided, TaskHandle otherwise
      */
-    schedule(task: Function, optionsOrCallback: Function | any, options?: any): Promise<any> | TaskHandle;
+    schedule(task: Function, optionsOrCallback: Function | Object, options?: Object): Promise<any> | TaskHandle;
     /**
      * Alias for enqueue() method for common queue system naming.
      * @param {Function} task - The task function to execute
@@ -673,13 +511,13 @@ export class HoldMyTask extends EventEmitter<[never]> {
      * @param {Object} options - Task options (if callback provided as second parameter)
      * @returns {Promise|TaskHandle} Promise if no callback provided, TaskHandle otherwise
      */
-    add(task: Function, optionsOrCallback: Function | any, options?: any): Promise<any> | TaskHandle;
+    add(task: Function, optionsOrCallback: Function | Object, options?: Object): Promise<any> | TaskHandle;
     /**
      * Find a task by its ID.
      * @param {string|number} id - The task ID to find
      * @returns {Object|null} Task object if found, null otherwise
      */
-    get(id: string | number): any | null;
+    get(id: string | number): Object | null;
     /**
      * Check if a task with the given ID exists.
      * @param {string|number} id - The task ID to check
@@ -691,7 +529,7 @@ export class HoldMyTask extends EventEmitter<[never]> {
      * @param {string|number} id - The task ID to find
      * @returns {Object|null} Task object if found, null otherwise
      */
-    getTask(id: string | number): any | null;
+    getTask(id: string | number): Object | null;
     /**
      * Alias for has() method for backward compatibility.
      * @param {string|number} id - The task ID to check
@@ -702,28 +540,26 @@ export class HoldMyTask extends EventEmitter<[never]> {
      * Get detailed information about the current queue state for debugging.
      * @returns {Object} Comprehensive queue state information
      */
-    inspect(): any;
+    inspect(): Object;
     /**
      * Get information about active timers and scheduler state.
      * @returns {Object} Timer and scheduler information
      */
-    inspectTimers(): any;
+    inspectTimers(): Object;
     /**
      * Get a summary of all queued tasks by status.
      * @returns {Object} Task summary by status
      */
-    inspectTasks(): any;
+    inspectTasks(): Object;
     /**
      * Get detailed information about the scheduler state and timing.
      * @returns {Object} Scheduler state information
      */
-    inspectScheduler(): any;
+    inspectScheduler(): Object;
     /**
      * Log comprehensive queue state to console for debugging.
      * @param {boolean} [detailed=false] - Whether to include detailed task information
      */
     debugLog(detailed?: boolean): void;
 }
-import { EventEmitter } from "events";
-import { MinHeap } from "./utils.mjs";
 //# sourceMappingURL=hold-my-task.d.mts.map

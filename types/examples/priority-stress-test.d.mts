@@ -1,12 +1,20 @@
 /**
+ * Priority Stress Test: Real-world Volume Commands with Priority Delays
+ *
+ * Tests realistic scenarios where:
+ * - Volume commands are high priority user actions with 100ms base delay
+ * - Update commands are low priority internal actions with 500ms base delay + 500ms start delay
+ * - Simulates real user input patterns with varying delays
+ */
+/**
  * Volume system with realistic timing
  */
-export class RealisticVolumeSystem {
-    constructor(initialVolume?: number);
+declare class RealisticVolumeSystem {
     volume: number;
     commandCount: number;
     updateCount: number;
     log: any[];
+    constructor(initialVolume?: number);
     executeVolumeCommand(change: any, commandId: any): Promise<{
         commandId: any;
         oldVolume: number;
@@ -34,11 +42,11 @@ export class RealisticVolumeSystem {
 /**
  * Realistic volume controller with proper priorities and delays
  */
-export class PriorityVolumeController {
-    constructor(volumeSystem: any, queueOptions?: {});
+declare class PriorityVolumeController {
     volumeSystem: any;
-    queue: HoldMyTask;
+    queue: any;
     commandCounter: number;
+    constructor(volumeSystem: any, queueOptions?: {});
     /**
      * Volume up with realistic "fire and forget" pattern
      * REAL-WORLD PATTERN: Volume task enqueues update task AFTER completing volume change
@@ -49,7 +57,7 @@ export class PriorityVolumeController {
 /**
  * Stress test scenarios
  */
-export function runPriorityStressTests(): Promise<{
+declare function runPriorityStressTests(): Promise<{
     scenario: string;
     totalDuration: number;
     accurateCommands: number;
@@ -62,5 +70,5 @@ export function runPriorityStressTests(): Promise<{
     coalescingEfficiency: number;
     averageCommandDuration: number;
 }[]>;
-import { HoldMyTask } from "../index.mjs";
+export { RealisticVolumeSystem, PriorityVolumeController, runPriorityStressTests };
 //# sourceMappingURL=priority-stress-test.d.mts.map
