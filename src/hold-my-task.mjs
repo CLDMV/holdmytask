@@ -1622,6 +1622,13 @@ export class HoldMyTask extends EventEmitter {
 			nextTime = Math.min(nextTime, this.nextAvailableTime);
 		}
 
+		// A task already sitting in the ready heap needs an imminent recheck even if
+		// pendingHeap is empty and nextAvailableTime has already expired - otherwise
+		// nextTime falls through to Infinity and the 24.8-day fallback below strands it.
+		if (this.readyHeap.size() > 0) {
+			nextTime = Math.min(nextTime, now);
+		}
+
 		// If next event is imminent or past, run immediately
 		if (nextTime <= now + this.options.tick) {
 			this.intervalId = setInterval(() => this.schedulerTick(), this.options.tick);
