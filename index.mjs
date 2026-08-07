@@ -20,15 +20,14 @@
 	}
 })();
 
+import { HoldMyTask } from "@cldmv/holdmytask/main";
+
 /**
  * Creates a HoldMyTask instance for task queue management
  * @param {object} [options={}] - Configuration options
  * @returns {Promise<object>} HoldMyTask instance
  */
-export default async function createHoldMyTask(options = {}) {
-	// Dynamic import after environment check
-	const mod = await import("@cldmv/holdmytask/main");
-	const HoldMyTask = mod.HoldMyTask;
+export async function createHoldMyTask(options = {}) {
 	return new HoldMyTask(options);
 }
 
@@ -38,8 +37,6 @@ export default async function createHoldMyTask(options = {}) {
  * @returns {Promise<object>} HoldMyTask instance
  */
 export async function createQueue(options = {}) {
-	const mod = await import("@cldmv/holdmytask/main");
-	const HoldMyTask = mod.HoldMyTask;
 	return new HoldMyTask(options);
 }
 
@@ -49,8 +46,6 @@ export async function createQueue(options = {}) {
  * @returns {Promise<object>} HoldMyTask instance
  */
 export async function createTaskManager(options = {}) {
-	const mod = await import("@cldmv/holdmytask/main");
-	const HoldMyTask = mod.HoldMyTask;
 	return new HoldMyTask(options);
 }
 
@@ -60,16 +55,16 @@ export async function createTaskManager(options = {}) {
  * @returns {Promise<object>} HoldMyTask instance
  */
 export async function createTaskProcessor(options = {}) {
-	const mod = await import("@cldmv/holdmytask/main");
-	const HoldMyTask = mod.HoldMyTask;
 	return new HoldMyTask(options);
 }
 
-// Named export aliases
-export { createHoldMyTask as HoldMyTask };
-export { createQueue as queue };
-export { createQueue as Queue };
-export { createTaskManager as TaskManager };
-export { createQueue as TaskQueue };
-export { createQueue as QueueManager };
-export { createTaskProcessor as TaskProcessor };
+// HoldMyTask and its constructor aliases are the real class (see issue #3) - `new
+// HoldMyTask()`, `new QueueManager()`, etc. all construct the same underlying type.
+export { HoldMyTask };
+export default HoldMyTask;
+export { HoldMyTask as queue };
+export { HoldMyTask as Queue };
+export { HoldMyTask as TaskManager };
+export { HoldMyTask as TaskQueue };
+export { HoldMyTask as QueueManager };
+export { HoldMyTask as TaskProcessor };
