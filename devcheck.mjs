@@ -31,38 +31,51 @@ const isCI = !!(
 	process.env.TF_BUILD // Azure DevOps
 );
 
-// Only runs in a source checkout. `src/` is present here but is NOT shipped in the
-// published package, and neither is this file - in distribution index.mjs's
-// `import("./devcheck.mjs")` simply fails and is ignored, so this never fires for
-// consumers. When `src/` IS present the developer should be loading from it via the
-// `holdmytask-dev` condition; if that isn't set they're silently running the built
-// `dist/` copy instead, so warn (even after a build - that is the point).
-if (existsSync(srcPath) && !isCI) {
-	const nodeEnv = process.env.NODE_ENV?.toLowerCase();
-	// Namespaced (not the generic `development`) so a consuming app's own
-	// `--conditions=development` can't accidentally flip this package to a source
-	// tree it doesn't ship. See the `./main` export in package.json.
-	const hasHoldMyTaskDev = process.env.NODE_OPTIONS?.includes("--conditions=holdmytask-dev");
+// Skip when installed as a dependency (a `node_modules` segment anywhere above this
+// file - covers scoped `node_modules/@cldmv/holdmytask` and unscoped installs). The
+// npm-published package ships neither `src/` nor this file, so this branch is already
+// moot there; but a git/tarball install DOES include them, and without this guard
+// devcheck would `process.exit(1)` inside a consumer's app. A "parent dir ===
+// node_modules" check would miss scoped packages (parent is the scope dir).
+const isInstalledPackage = __dirname.split(path.sep).includes("node_modules");
 
-	if (!nodeEnv || (!["", "development"].includes(nodeEnv) && !hasHoldMyTaskDev)) {
+// Only meaningful in a source checkout. When `src/` is present the developer should be
+// loading from it via the `holdmytask-dev` condition; if that condition isn't set they
+// are silently running the built `dist/` copy instead, so warn - even after a build,
+// since a built checkout has BOTH src/ and dist/ and the condition is the only thing
+// that selects src/.
+if (existsSync(srcPath) && !isCI && !isInstalledPackage) {
+	// The condition selects src/ (see the `./main` export in package.json). It can be
+	// supplied via NODE_OPTIONS (`NODE_OPTIONS=--conditions=holdmytask-dev`) OR directly
+	// on the node CLI (`node --conditions=holdmytask-dev`), which lands in execArgv -
+	// this is how vitest passes it to workers - so check both. Namespaced (not the
+	// generic `development`) so a consuming app's own `--conditions=development` can't
+	// flip this package to a source tree it doesn't ship. NODE_ENV is deliberately NOT
+	// consulted: it does not affect which tree resolves, so keying off it would both
+	// miss the real problem (dev env set, condition absent -> silently on dist/) and
+	// false-alarm (condition set, dev env absent -> actually fine).
+	const flags = (process.env.NODE_OPTIONS || "") + " " + process.execArgv.join(" ");
+	const hasHoldMyTaskDev = flags.includes("holdmytask-dev");
+
+	if (!hasHoldMyTaskDev) {
 		console.error("❌ Development environment not properly configured!");
-		console.error("📁 Source folder detected but NODE_ENV/NODE_OPTIONS not set for holdmytask development.");
+		console.error("📁 Source folder detected but the 'holdmytask-dev' condition is not set,");
+		console.error("   so holdmytask is loading from dist/ instead of src/.");
 		console.error("");
-		console.error("🔧 To fix this, run one of these commands:");
+		console.error("🔧 To load from src/ for development, set the condition:");
 		console.error("   Windows (cmd):");
-		console.error("     set NODE_ENV=development");
 		console.error("     set NODE_OPTIONS=--conditions=holdmytask-dev");
 		console.error("");
 		console.error("   Windows (PowerShell):");
-		console.error("     $env:NODE_ENV='development'");
 		console.error("     $env:NODE_OPTIONS='--conditions=holdmytask-dev'");
 		console.error("");
 		console.error("   Unix/Linux/macOS:");
-		console.error("     export NODE_ENV=development");
 		console.error("     export NODE_OPTIONS=--conditions=holdmytask-dev");
 		console.error("");
-		console.error("💡 This ensures holdmytask loads from src/ instead of dist/ for development.");
-		console.error("🔧 Using 'holdmytask-dev' prevents conflicts with consumer development settings.");
+		console.error("   ...or pass it directly: node --conditions=holdmytask-dev <file>");
+		console.error("");
+		console.error("💡 'holdmytask-dev' is namespaced so it can't conflict with a consumer's");
+		console.error("   own development conditions.");
 		console.error("🚀 CI environments automatically skip this check.");
 		process.exit(1);
 	}
