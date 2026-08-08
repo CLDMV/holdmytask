@@ -1,4 +1,4 @@
-import { test, expect, describe } from "vitest";
+import { test, expect, describe, vi } from "vitest";
 import { HoldMyTask } from "../src/hold-my-task.mjs";
 
 // Isolated from HoldMyTask.test.vitest.mjs: this test hangs until the 30s Vitest
@@ -67,4 +67,68 @@ describe.each([
 			q.destroy();
 		}
 	});
+});
+
+// Regression test for the scheduler deadlock fixed alongside the test above:
+// _scheduleNextTick() only derived its next wake time from pendingHeap and
+// nextAvailableTime. Called at the exact moment nextAvailableTime had just
+// expired (a narrow race against schedulerTick's own timing), with pendingHeap
+// empty, nextTime fell through to Infinity - arming a ~24.8-day setTimeout and
+// stranding any task already sitting in readyHeap forever. Traditional Polling
+// only: Smart Scheduling uses a different scheduleSmartTimeout()/runScheduler()
+// path unaffected by this bug. Uses the constructor's injectable `now` option to
+// force the exact race deterministically instead of racing real wall-clock time.
+test("a readyHeap task is not stranded when its delay has just expired (regression)", async () => {
+	let fakeNow = Date.now();
+	const q = new HoldMyTask({
+		concurrency: 1,
+		delays: { 1: 50 },
+		smartScheduling: false,
+		now: () => fakeNow
+	});
+	const results = [];
+
+	q.enqueue(
+		() => "task1",
+		(err, r) => results.push(r),
+		{ priority: 1 }
+	);
+	q.enqueue(
+		() => "task2",
+		(err, r) => results.push(r),
+		{ priority: 1 }
+	);
+
+	// Wait for task1 to actually run and complete (real time - the default poll
+	// tick is 25ms, so this needs to clear a few real ticks; the queue's own delay
+	// bookkeeping uses the injected now(), not real time).
+	await new Promise((resolve) => setTimeout(resolve, 120));
+
+	try {
+		// task2 should now be sitting in readyHeap, blocked by task1's post-completion delay.
+		expect(q.readyHeap.size()).toBe(1);
+		expect(q.pendingHeap.size()).toBe(0);
+		expect(q.nextAvailableTime).toBeGreaterThan(0);
+
+		// Simulate wall-clock time crossing nextAvailableTime right before the
+		// scheduler gets a chance to recheck it - the exact race window that caused
+		// the deadlock.
+		fakeNow = q.nextAvailableTime + 1;
+
+		const setTimeoutSpy = vi.spyOn(global, "setTimeout");
+		q._scheduleNextTick();
+		setTimeoutSpy.mockRestore();
+
+		if (setTimeoutSpy.mock.calls.length > 0) {
+			const armedDelay = setTimeoutSpy.mock.calls.at(-1)[1];
+			// Before the fix this was ~2147483647 (the 24.8-day fallback), stranding
+			// task2 forever. After the fix it must be an imminent recheck.
+			expect(armedDelay).toBeLessThan(1000);
+		} else {
+			// Took the interval branch instead - also an imminent recheck, also fine.
+			expect(q.intervalId).toBeTruthy();
+		}
+	} finally {
+		q.destroy();
+	}
 });
