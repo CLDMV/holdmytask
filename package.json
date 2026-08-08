@@ -16,7 +16,7 @@
 			"import": "./devcheck.mjs"
 		},
 		"./main": {
-			"development": {
+			"holdmytask-dev": {
 				"types": "./types/src/hold-my-task.d.mts",
 				"import": "./src/hold-my-task.mjs"
 			},
@@ -42,6 +42,7 @@
 		"build": "node build.mjs",
 		"build:types": "tsc --project .configs/tsconfig.dts.jsonc",
 		"build:ci": "npm run build:types && npm run test:types && npm run build",
+		"prepare": "npm run build",
 		"precommit": "npm run build:types && npm run test:types && npm run lint && npm run test"
 	},
 	"keywords": [

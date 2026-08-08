@@ -77,7 +77,7 @@ on:
         description: "Environment for tests (affects NODE_ENV and NODE_OPTIONS --conditions flag)"
         type: string
         required: false
-        default: "development"
+        default: "holdmytask-dev"
       # ── Coverage badge ───────────────────────────────────────────────
       enable_coverage_badge:
         description: "Run the coverage + badge-push job after CI passes"
@@ -212,11 +212,11 @@ jobs:
       # workflow_dispatch can still opt out (set false).
       lts_only_matrix: ${{ github.event.inputs.lts_only_matrix != 'false' }}
       package_manager: ${{ github.event.inputs.package_manager || 'npm' }}
-      test_command: "npm test" # Use defaults: NODE_ENV=development, NODE_OPTIONS=--conditions=development
-      # test_command: "NODE_OPTIONS='--conditions=slothlet-dev' npm test"  # Override NODE_OPTIONS only
+      test_command: "npm test" # Uses NODE_ENV=holdmytask-dev, NODE_OPTIONS=--conditions=holdmytask-dev (see test_environment)
+      # test_command: "NODE_OPTIONS='--conditions=holdmytask-dev' npm test"  # Override NODE_OPTIONS only
       # test_command: "NODE_ENV=test npm test"  # Override NODE_ENV only
-      # test_command: "NODE_ENV=test NODE_OPTIONS='--conditions=slothlet-dev' npm test"  # Override both
-      test_environment: ${{ github.event.inputs.test_environment || 'development' }} # Alternative to setting in test_command
+      # test_command: "NODE_ENV=test NODE_OPTIONS='--conditions=holdmytask-dev' npm test"  # Override both
+      test_environment: ${{ github.event.inputs.test_environment || 'holdmytask-dev' }} # Alternative to setting in test_command
       build_command: "npm run build"
       skip_performance_tests: false
       skip_matrix_tests: false

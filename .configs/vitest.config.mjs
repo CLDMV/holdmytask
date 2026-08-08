@@ -8,6 +8,21 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 export default defineConfig({
 	root,
+	// The package-scoped dev condition that routes `@cldmv/holdmytask/main` to `src/`
+	// (see the `./main` export in package.json). Tests exercise and cover the SOURCE
+	// tree, so the resolver must add `holdmytask-dev`. This *replaces* vite's default
+	// conditions, so the usual ones are kept alongside it. CI also sets
+	// `NODE_OPTIONS=--conditions=holdmytask-dev` (via ci.yml `test_environment`); this
+	// makes a bare local `npm test` resolve to src the same way without needing it.
+	resolve: {
+		conditions: ["holdmytask-dev", "module", "browser", "development|production"]
+	},
+	ssr: {
+		// Vitest often routes node-environment resolution through the SSR pipeline.
+		resolve: {
+			conditions: ["holdmytask-dev", "node", "development|production"]
+		}
+	},
 	test: {
 		// Fleet-wide vitest test-file convention: `*.test.vitest.mjs`.
 		include: ["tests/**/*.test.vitest.mjs"],
