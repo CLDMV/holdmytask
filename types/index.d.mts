@@ -14,27 +14,27 @@ import { HoldMyTask } from "@cldmv/holdmytask/main";
 /**
  * Creates a HoldMyTask instance for task queue management
  * @param {object} [options={}] - Configuration options
- * @returns {Promise<object>} HoldMyTask instance
+ * @returns {Promise<HoldMyTask>} HoldMyTask instance
  */
-export declare function createHoldMyTask(options?: object): Promise<object>;
+export declare function createHoldMyTask(options?: object): Promise<HoldMyTask>;
 /**
  * Create a task queue instance
  * @param {object} [options={}] - Configuration options
- * @returns {Promise<object>} HoldMyTask instance
+ * @returns {Promise<HoldMyTask>} HoldMyTask instance
  */
-export declare function createQueue(options?: object): Promise<object>;
+export declare function createQueue(options?: object): Promise<HoldMyTask>;
 /**
  * Create a task manager instance
  * @param {object} [options={}] - Configuration options
- * @returns {Promise<object>} HoldMyTask instance
+ * @returns {Promise<HoldMyTask>} HoldMyTask instance
  */
-export declare function createTaskManager(options?: object): Promise<object>;
+export declare function createTaskManager(options?: object): Promise<HoldMyTask>;
 /**
  * Create a task processor instance
  * @param {object} [options={}] - Configuration options
- * @returns {Promise<object>} HoldMyTask instance
+ * @returns {Promise<HoldMyTask>} HoldMyTask instance
  */
-export declare function createTaskProcessor(options?: object): Promise<object>;
+export declare function createTaskProcessor(options?: object): Promise<HoldMyTask>;
 export { HoldMyTask };
 export default HoldMyTask;
 export { HoldMyTask as queue };

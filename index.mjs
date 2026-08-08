@@ -25,7 +25,7 @@ import { HoldMyTask } from "@cldmv/holdmytask/main";
 /**
  * Creates a HoldMyTask instance for task queue management
  * @param {object} [options={}] - Configuration options
- * @returns {Promise<object>} HoldMyTask instance
+ * @returns {Promise<HoldMyTask>} HoldMyTask instance
  */
 export async function createHoldMyTask(options = {}) {
 	return new HoldMyTask(options);
@@ -34,7 +34,7 @@ export async function createHoldMyTask(options = {}) {
 /**
  * Create a task queue instance
  * @param {object} [options={}] - Configuration options
- * @returns {Promise<object>} HoldMyTask instance
+ * @returns {Promise<HoldMyTask>} HoldMyTask instance
  */
 export async function createQueue(options = {}) {
 	return new HoldMyTask(options);
@@ -43,7 +43,7 @@ export async function createQueue(options = {}) {
 /**
  * Create a task manager instance
  * @param {object} [options={}] - Configuration options
- * @returns {Promise<object>} HoldMyTask instance
+ * @returns {Promise<HoldMyTask>} HoldMyTask instance
  */
 export async function createTaskManager(options = {}) {
 	return new HoldMyTask(options);
@@ -52,7 +52,7 @@ export async function createTaskManager(options = {}) {
 /**
  * Create a task processor instance
  * @param {object} [options={}] - Configuration options
- * @returns {Promise<object>} HoldMyTask instance
+ * @returns {Promise<HoldMyTask>} HoldMyTask instance
  */
 export async function createTaskProcessor(options = {}) {
 	return new HoldMyTask(options);
