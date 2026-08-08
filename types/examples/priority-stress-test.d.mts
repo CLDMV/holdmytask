@@ -60,7 +60,7 @@ declare class PriorityVolumeController {
 declare function runPriorityStressTests(): Promise<{
     scenario: string;
     totalDuration: number;
-    accurateCommands: number;
+    accurateCommands: any;
     totalCommands: number;
     accuracyRate: number;
     finalVolume: number;
