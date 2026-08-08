@@ -11,9 +11,10 @@ export default defineConfig({
 	// The package-scoped dev condition that routes `@cldmv/holdmytask/main` to `src/`
 	// (see the `./main` export in package.json). Tests exercise and cover the SOURCE
 	// tree, so the resolver must add `holdmytask-dev`. This *replaces* vite's default
-	// conditions, so the usual ones are kept alongside it. CI also sets
-	// `NODE_OPTIONS=--conditions=holdmytask-dev` (via ci.yml `test_environment`); this
-	// makes a bare local `npm test` resolve to src the same way without needing it.
+	// conditions, so the usual ones are kept alongside it. `test.nodeOptions`/`test.env`
+	// below carry the same condition into forked test workers (for native imports of
+	// the package entry, e.g. CommonAliases importing index.mjs -> /main), so a bare
+	// local `npm test` resolves to src the same way CI does. Mirrors @cldmv/uuid.
 	resolve: {
 		conditions: ["holdmytask-dev", "module", "browser", "development|production"]
 	},
@@ -30,6 +31,10 @@ export default defineConfig({
 		environment: "node",
 		globals: true,
 		testTimeout: 30000,
+		nodeOptions: ["--conditions=holdmytask-dev"],
+		env: {
+			NODE_ENV: "holdmytask-dev"
+		},
 		// "dot" keeps CI logs to one character per test file instead of a full
 		// "RUN vX.Y.Z" + per-file pass/fail block for every file — vitest's
 		// non-interactive fallback (no TTY to redraw) otherwise reprints that
