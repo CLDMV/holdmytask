@@ -19,9 +19,11 @@ export default defineConfig({
 		conditions: ["holdmytask-dev", "module", "browser", "development|production"]
 	},
 	ssr: {
-		// Vitest often routes node-environment resolution through the SSR pipeline.
+		// Vitest often routes node-environment resolution through the SSR pipeline. Keep
+		// `module` here alongside the non-SSR resolver so a dependency's `module`-keyed
+		// export resolves the same under Vitest's SSR pipeline as in a normal build.
 		resolve: {
-			conditions: ["holdmytask-dev", "node", "development|production"]
+			conditions: ["holdmytask-dev", "module", "node", "development|production"]
 		}
 	},
 	test: {
@@ -31,10 +33,12 @@ export default defineConfig({
 		environment: "node",
 		globals: true,
 		testTimeout: 30000,
+		// Carry the dev condition into forked workers (native imports of the package
+		// entry, e.g. CommonAliases importing index.mjs -> /main). NODE_ENV is left
+		// alone: it does not select the conditional export (that's `--conditions`), and
+		// forcing a non-standard `NODE_ENV=holdmytask-dev` could confuse deps that key
+		// off the usual test/development/production values.
 		nodeOptions: ["--conditions=holdmytask-dev"],
-		env: {
-			NODE_ENV: "holdmytask-dev"
-		},
 		// "dot" keeps CI logs to one character per test file instead of a full
 		// "RUN vX.Y.Z" + per-file pass/fail block for every file — vitest's
 		// non-interactive fallback (no TTY to redraw) otherwise reprints that

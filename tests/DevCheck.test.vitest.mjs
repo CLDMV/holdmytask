@@ -87,6 +87,17 @@ describe("devcheck", () => {
 		expect(status).toBe(1);
 	});
 
+	test("does NOT match a condition that merely contains 'holdmytask-dev' as a substring", () => {
+		// Exact-value match, not substring: --conditions=not-holdmytask-dev must NOT silence it.
+		const { status } = runDevcheck({ src: true }, { nodeArgs: ["--conditions=not-holdmytask-dev"] });
+		expect(status).toBe(1);
+	});
+
+	test("accepts holdmytask-dev among comma-separated conditions", () => {
+		const { status } = runDevcheck({ src: true }, { nodeArgs: ["--conditions=foo,holdmytask-dev,bar"] });
+		expect(status).toBe(0);
+	});
+
 	test("skips in CI", () => {
 		const { status, stderr } = runDevcheck({ src: true }, { env: { CI: "true" } });
 		expect(status).toBe(0);

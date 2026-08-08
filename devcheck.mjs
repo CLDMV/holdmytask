@@ -47,15 +47,29 @@ const isInstalledPackage = __dirname.split(path.sep).includes("node_modules");
 if (existsSync(srcPath) && !isCI && !isInstalledPackage) {
 	// The condition selects src/ (see the `./main` export in package.json). It can be
 	// supplied via NODE_OPTIONS (`NODE_OPTIONS=--conditions=holdmytask-dev`) OR directly
-	// on the node CLI (`node --conditions=holdmytask-dev`), which lands in execArgv -
-	// this is how vitest passes it to workers - so check both. Namespaced (not the
-	// generic `development`) so a consuming app's own `--conditions=development` can't
-	// flip this package to a source tree it doesn't ship. NODE_ENV is deliberately NOT
-	// consulted: it does not affect which tree resolves, so keying off it would both
+	// on the node CLI (`node --conditions=holdmytask-dev` / `-C holdmytask-dev`), which
+	// lands in execArgv - this is how vitest passes it to workers - so scan both.
+	// Parse the actual `--conditions` values and match EXACTLY (not a substring), so
+	// e.g. `--conditions=not-holdmytask-dev` does not spuriously count. Namespaced (not
+	// the generic `development`) so a consuming app's own `--conditions=development`
+	// can't flip this package to a source tree it doesn't ship. NODE_ENV is deliberately
+	// NOT consulted: it does not affect which tree resolves, so keying off it would both
 	// miss the real problem (dev env set, condition absent -> silently on dist/) and
 	// false-alarm (condition set, dev env absent -> actually fine).
-	const flags = (process.env.NODE_OPTIONS || "") + " " + process.execArgv.join(" ");
-	const hasHoldMyTaskDev = flags.includes("holdmytask-dev");
+	const conditions = [];
+	const collect = (value) => {
+		if (value) for (const c of value.split(/[,|]/)) if (c.trim()) conditions.push(c.trim());
+	};
+	const scan = (tokens) => {
+		for (let i = 0; i < tokens.length; i++) {
+			if (tokens[i] === "--conditions" || tokens[i] === "-C") collect(tokens[i + 1]);
+			else if (tokens[i].startsWith("--conditions=")) collect(tokens[i].slice("--conditions=".length));
+			else if (tokens[i].startsWith("-C=")) collect(tokens[i].slice("-C=".length));
+		}
+	};
+	scan(process.execArgv);
+	scan((process.env.NODE_OPTIONS || "").split(/\s+/).filter(Boolean));
+	const hasHoldMyTaskDev = conditions.includes("holdmytask-dev");
 
 	if (!hasHoldMyTaskDev) {
 		console.error("❌ Development environment not properly configured!");
