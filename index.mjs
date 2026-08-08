@@ -11,7 +11,11 @@
  *	@Copyright: Copyright (c) 2013-2025 Catalyzed Motivation Inc. All rights reserved.
  */
 
-// Development environment check (must happen before holdmytask imports)
+// Development environment check. NOTE: the static `import` of the core below is
+// hoisted and evaluated before this IIFE body runs, so devcheck does NOT run before
+// the core loads - it's a best-effort, fire-and-forget dev-time warning. (Running it
+// strictly first would require a dynamic import + top-level await, which breaks the
+// index.cjs bridge's synchronous `require` of this module - see PR #11 discussion.)
 (async () => {
 	try {
 		await import("./devcheck.mjs");
