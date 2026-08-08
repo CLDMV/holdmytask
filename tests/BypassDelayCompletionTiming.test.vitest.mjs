@@ -116,11 +116,18 @@ test("a readyHeap task is not stranded when its delay has just expired (regressi
 		fakeNow = q.nextAvailableTime + 1;
 
 		const setTimeoutSpy = vi.spyOn(global, "setTimeout");
-		q._scheduleNextTick();
-		setTimeoutSpy.mockRestore();
+		let armedCalls;
+		try {
+			q._scheduleNextTick();
+		} finally {
+			// Capture the recorded calls BEFORE restoring, and restore in finally so the
+			// global spy never leaks into later tests even if _scheduleNextTick throws.
+			armedCalls = setTimeoutSpy.mock.calls.slice();
+			setTimeoutSpy.mockRestore();
+		}
 
-		if (setTimeoutSpy.mock.calls.length > 0) {
-			const armedDelay = setTimeoutSpy.mock.calls.at(-1)[1];
+		if (armedCalls.length > 0) {
+			const armedDelay = armedCalls.at(-1)[1];
 			// Before the fix this was ~2147483647 (the 24.8-day fallback), stranding
 			// task2 forever. After the fix it must be an imminent recheck.
 			expect(armedDelay).toBeLessThan(1000);
