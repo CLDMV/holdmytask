@@ -51,9 +51,19 @@ describe.each([
 			{ priority: 1 }
 		);
 
-		await new Promise((resolve) => q.once("drain", resolve));
-
 		try {
+			// Race the drain wait against a short timeout: if drain never fires (the exact
+			// deadlock this file exists to catch), fail fast instead of hanging to vitest's
+			// 30s global timeout - and keep the wait inside the try so the finally still
+			// runs q.destroy() and doesn't leak timers into later tests.
+			await new Promise((resolve, reject) => {
+				const timer = setTimeout(() => reject(new Error("drain not emitted within 5000ms")), 5000);
+				q.once("drain", () => {
+					clearTimeout(timer);
+					resolve();
+				});
+			});
+
 			expect(results).toEqual(["task1", "task2", "task3"]); // Normal priority order, task2 bypasses task1's delay
 
 			// Task2 bypasses task1's delay (should start immediately after task1)
