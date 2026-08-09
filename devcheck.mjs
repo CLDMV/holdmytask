@@ -84,7 +84,7 @@ if (existsSync(srcPath) && !isCI && !isInstalledPackage) {
 	if (!hasHoldMyTaskDev) {
 		console.error("❌ Development environment not properly configured!");
 		console.error("📁 Source folder detected but the 'holdmytask-dev' condition is not set,");
-		console.error("   so holdmytask is loading from dist/ instead of src/.");
+		console.error("   so imports resolve to dist/ by default (or fail if it isn't built) instead of src/.");
 		console.error("");
 		console.error("🔧 To load from src/ for development, set the condition:");
 		console.error("   Windows (cmd):");
