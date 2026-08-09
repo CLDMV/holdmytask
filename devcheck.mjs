@@ -62,12 +62,19 @@ if (existsSync(srcPath) && !isCI && !isInstalledPackage) {
 	const scan = (tokens) => {
 		for (let i = 0; i < tokens.length; i++) {
 			if (tokens[i] === "--conditions" || tokens[i] === "-C") {
-				if (tokens[i + 1] !== undefined) conditions.push(tokens[i + 1]);
+				// Space form (`--conditions x` / `-C x`): consume the following token as this
+				// flag's value and SKIP it, so a value that itself looks like a flag (e.g. the
+				// literal `--conditions=x`) isn't re-interpreted on the next iteration.
+				if (tokens[i + 1] !== undefined) {
+					conditions.push(tokens[i + 1]);
+					i++;
+				}
 			} else if (tokens[i].startsWith("--conditions=")) {
 				conditions.push(tokens[i].slice("--conditions=".length));
-			} else if (tokens[i].startsWith("-C=")) {
-				conditions.push(tokens[i].slice("-C=".length));
 			}
+			// Note: `-C=x` is intentionally not handled - Node rejects it ("bad option"),
+			// so it can never appear in execArgv/NODE_OPTIONS. Valid forms are
+			// `--conditions=x`, `--conditions x`, and `-C x`.
 		}
 	};
 	scan(process.execArgv);

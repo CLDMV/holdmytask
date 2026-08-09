@@ -92,6 +92,14 @@ describe("devcheck", () => {
 		expect(status).toBe(0);
 	});
 
+	test("stays silent via the -C short flag (Node's alias for --conditions)", () => {
+		// Node accepts `-C <value>` (space form) but rejects `-C=<value>`, so only the
+		// space form is a real input to detect.
+		const { status, stderr } = runDevcheck({ src: true }, { nodeArgs: ["-C", "holdmytask-dev"] });
+		expect(status).toBe(0);
+		expect(stderr).toBe("");
+	});
+
 	test("NODE_ENV=development alone does NOT silence it (only the condition selects src/)", () => {
 		// Keying off NODE_ENV would be a false negative: dev env set but no condition means
 		// the package is still resolving to dist/, which is exactly what should be flagged.
