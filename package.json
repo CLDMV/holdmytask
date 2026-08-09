@@ -91,7 +91,7 @@
 		"@eslint/markdown": "^8.0.3",
 		"@html-eslint/eslint-plugin": "^0.64.0",
 		"@html-eslint/parser": "^0.64.0",
-		"@types/node": "^20.0.0",
+		"@types/node": "^26.1.2",
 		"@vitest/coverage-v8": "^4.1.10",
 		"@vitest/ui": "^4.1.10",
 		"eslint": "^10.8.0",
