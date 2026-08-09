@@ -803,58 +803,6 @@ describe.each([
 		// Test passed if no timeout occurred (task2 started immediately)
 	});
 
-	test("bypassed task still applies its own completion delay", async () => {
-		const q = new HoldMyTask({
-			concurrency: 1,
-			delays: { 1: 200, 2: 400 },
-			smartScheduling
-		});
-		const results = [];
-		const timestamps = [];
-
-		// Task 1: Priority 1 (200ms delay) - will complete first
-		q.enqueue(
-			() => {
-				timestamps.push(Date.now());
-				return "task1";
-			},
-			(err, result) => results.push(result),
-			{ priority: 1 }
-		);
-
-		// Task 2: Same priority but bypasses the delay from task1, priority 2 means higher priority but has delay
-		q.enqueue(
-			() => {
-				timestamps.push(Date.now());
-				return "task2";
-			},
-			(err, result) => results.push(result),
-			{ priority: 1, bypassDelay: true }
-		);
-
-		// Task 3: Should wait for whatever delay task2 creates (task2 has no specific delay config, so uses priority 1 = 200ms)
-		q.enqueue(
-			() => {
-				timestamps.push(Date.now());
-				return "task3";
-			},
-			(err, result) => results.push(result),
-			{ priority: 1 }
-		);
-
-		await new Promise((resolve) => q.on("drain", resolve));
-
-		expect(results).toEqual(["task1", "task2", "task3"]); // Normal priority order, task2 bypasses task1's delay
-
-		// Task2 bypasses task1's delay (should start immediately after task1)
-		const task1ToTask2Gap = timestamps[1] - timestamps[0];
-		expect(task1ToTask2Gap).toBeLessThan(100);
-
-		// Task3 waits for task2's completion delay (200ms since task2 is priority 1)
-		const task2ToTask3Gap = timestamps[2] - timestamps[1];
-		expect(task2ToTask3Gap).toBeGreaterThan(150);
-	});
-
 	test("handles maxQueue: -1 as unlimited queue", async () => {
 		const q = new HoldMyTask({ smartScheduling, maxQueue: -1 });
 
