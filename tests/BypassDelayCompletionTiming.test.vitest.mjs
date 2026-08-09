@@ -109,13 +109,22 @@ test("a readyHeap task is not stranded when its delay has just expired (regressi
 		{ priority: 1 }
 	);
 
-	// Wait for task1 to actually run and complete (real time - the default poll
-	// tick is 25ms, so this needs to clear a few real ticks; the queue's own delay
-	// bookkeeping uses the injected now(), not real time).
-	await new Promise((resolve) => setTimeout(resolve, 120));
-
 	try {
-		// task2 should now be sitting in readyHeap, blocked by task1's post-completion delay.
+		// Wait (bounded) until task1 has actually run + completed and task2 has moved
+		// into readyHeap, blocked by task1's post-completion delay - polling the
+		// observable state instead of a fixed sleep, which is nondeterministic on slow/
+		// contended CI. The queue's delay bookkeeping uses the injected now(), not real
+		// time, so task2 stays parked in readyHeap. Kept inside the try so the finally
+		// still runs q.destroy() if this ever times out.
+		const deadline = Date.now() + 2000;
+		while (!(results.includes("task1") && q.readyHeap.size() === 1 && q.pendingHeap.size() === 0)) {
+			if (Date.now() > deadline) {
+				throw new Error("task1 did not complete / task2 did not reach readyHeap within 2000ms");
+			}
+			await new Promise((resolve) => setTimeout(resolve, 5));
+		}
+
+		// task2 is now sitting in readyHeap, blocked by task1's post-completion delay.
 		expect(q.readyHeap.size()).toBe(1);
 		expect(q.pendingHeap.size()).toBe(0);
 		expect(q.nextAvailableTime).toBeGreaterThan(0);
