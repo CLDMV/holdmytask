@@ -1,6 +1,6 @@
 {
 	"name": "@cldmv/holdmytask",
-	"version": "1.6.2",
+	"version": "2.0.0",
 	"description": "A tiny task queue that waits until your task is ready",
 	"main": "./index.cjs",
 	"module": "./index.mjs",
@@ -11,12 +11,8 @@
 			"import": "./index.mjs",
 			"require": "./index.cjs"
 		},
-		"./devcheck": {
-			"types": "./types/devcheck.d.mts",
-			"import": "./devcheck.mjs"
-		},
 		"./main": {
-			"development": {
+			"holdmytask-dev": {
 				"types": "./types/src/hold-my-task.d.mts",
 				"import": "./src/hold-my-task.mjs"
 			},
@@ -91,7 +87,7 @@
 		"@eslint/markdown": "^8.0.3",
 		"@html-eslint/eslint-plugin": "^0.64.0",
 		"@html-eslint/parser": "^0.64.0",
-		"@types/node": "^20.0.0",
+		"@types/node": "^26.1.2",
 		"@vitest/coverage-v8": "^4.1.10",
 		"@vitest/ui": "^4.1.10",
 		"eslint": "^10.8.0",
