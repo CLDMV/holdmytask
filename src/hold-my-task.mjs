@@ -1877,7 +1877,6 @@ export class HoldMyTask extends EventEmitter {
 
 		try {
 			// Set up timeout if specified
-			let timeoutId;
 			let timeoutPromise;
 
 			if (item.timeout) {
