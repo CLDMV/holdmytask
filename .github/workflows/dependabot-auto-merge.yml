@@ -54,7 +54,6 @@ jobs:
             # to whatever the branch actually permits. holdmytask has historically
             # requested "squash" explicitly; kept as-is (harmless either way since
             # the action self-narrows).
-            merge_method: "squash"
             # also_for_actors: "renovate[bot]"   # extend if you adopt Renovate
         secrets:
             BOT_APP_CLIENT_ID: ${{ secrets.CLDMV_BOT_APP_CLIENT_ID }}
