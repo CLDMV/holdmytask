@@ -33,31 +33,31 @@
 name: 🔁 Dependabot Auto-Recreate
 
 on:
-    issue_comment:
-        types: [created]
-    pull_request_target:
-        types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
+  pull_request_target:
+    types: [opened, synchronize, reopened]
 
 permissions:
-    contents: read
-    pull-requests: write
-    issues: write
+  contents: read
+  pull-requests: write
+  issues: write
 
 jobs:
-    recreate:
-        # A) Dependabot replied that it can't rebase (the PR was edited), or
-        # B) a Dependabot PR opened/updated — the reusable then checks whether
-        #    its head commit is actually unverified before doing anything.
-        if: >-
-            (github.event_name == 'issue_comment'
-              && github.event.issue.pull_request
-              && github.event.comment.user.login == 'dependabot[bot]'
-              && contains(github.event.comment.body, 'edited by someone other than Dependabot'))
-            || (github.event_name == 'pull_request_target'
-              && github.event.pull_request.user.login == 'dependabot[bot]')
-        uses: CLDMV/.github/.github/workflows/reusable-dependabot-recreate.yml@v4
-        with:
-            skip_label: "no-recreate"
-        secrets:
-            BOT_APP_CLIENT_ID: ${{ secrets.CLDMV_BOT_APP_CLIENT_ID }}
-            BOT_APP_PRIVATE_KEY: ${{ secrets.CLDMV_BOT_APP_PRIVATE_KEY }}
+  recreate:
+    # A) Dependabot replied that it can't rebase (the PR was edited), or
+    # B) a Dependabot PR opened/updated — the reusable then checks whether
+    #    its head commit is actually unverified before doing anything.
+    if: >-
+      (github.event_name == 'issue_comment'
+        && github.event.issue.pull_request
+        && github.event.comment.user.login == 'dependabot[bot]'
+        && contains(github.event.comment.body, 'edited by someone other than Dependabot'))
+      || (github.event_name == 'pull_request_target'
+        && github.event.pull_request.user.login == 'dependabot[bot]')
+    uses: CLDMV/.github/.github/workflows/reusable-dependabot-recreate.yml@v4
+    with:
+      skip_label: "no-recreate"
+    secrets:
+      BOT_APP_CLIENT_ID: ${{ secrets.CLDMV_BOT_APP_CLIENT_ID }}
+      BOT_APP_PRIVATE_KEY: ${{ secrets.CLDMV_BOT_APP_PRIVATE_KEY }}

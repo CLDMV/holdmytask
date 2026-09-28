@@ -51,50 +51,50 @@
 name: 🚦 Release Merge (v4)
 
 on:
-    pull_request_review:
-        types: [submitted] # your approval arms it
-    workflow_run: # re-evaluate as each check-producing workflow finishes — see #318
-        workflows: # ← must match your workflows' `name:`s — see IMPORTANT above
-            - "🧪 CI Tests & Build"
-            - "🔍 CodeQL"
-            - "🔒 Dependency Review"
-            - "📊 Bundle Size"
-            - "🚀 Next Release (v4)"
-            - "🚑 Hotfixes Release (v4)"
-            - "🌿 Branch Retention"
-            - "🏷️ PR Labeler"
-            - "🏷️ PR Title Normalizer"
-            - "👋 Welcome Contributor"
-            - "🔀 Hotfix PR Redirector (v4)"
-            - "🚀 Member Auto-Enable Auto-Merge"
-            - "🤖 Dependabot Auto-Merge"
-            - "🔁 Dependabot Auto-Recreate"
-            - "📜 CLA"
-            - "📥 PR Notify"
-        types: [completed]
-        branches: [next, hotfixes]
-    workflow_dispatch: # manual re-evaluation
+  pull_request_review:
+    types: [submitted] # your approval arms it
+  workflow_run: # re-evaluate as each check-producing workflow finishes — see #318
+    workflows: # ← must match your workflows' `name:`s — see IMPORTANT above
+      - "🧪 CI Tests & Build"
+      - "🔍 CodeQL"
+      - "🔒 Dependency Review"
+      - "📊 Bundle Size"
+      - "🚀 Next Release (v4)"
+      - "🚑 Hotfixes Release (v4)"
+      - "🌿 Branch Retention"
+      - "🏷️ PR Labeler"
+      - "🏷️ PR Title Normalizer"
+      - "👋 Welcome Contributor"
+      - "🔀 Hotfix PR Redirector (v4)"
+      - "🚀 Member Auto-Enable Auto-Merge"
+      - "🤖 Dependabot Auto-Merge"
+      - "🔁 Dependabot Auto-Recreate"
+      - "📜 CLA"
+      - "📥 PR Notify"
+    types: [completed]
+    branches: [next, hotfixes]
+  workflow_dispatch: # manual re-evaluation
 
 # Serialize per repo: each run re-resolves the release PR + re-gates the head,
 # so queue (don't cancel) to avoid racing a merge that's already in flight.
 # GitHub keeps one pending run per group and a newer arrival replaces it — that
 # is harmless, since every run re-reads approval + check state from the API.
 concurrency:
-    group: release-merge-${{ github.repository }}
-    cancel-in-progress: false
+  group: release-merge-${{ github.repository }}
+  cancel-in-progress: false
 
 permissions:
-    contents: read
+  contents: read
 
 jobs:
-    merge:
-        permissions:
-            contents: write
-            pull-requests: write
-            checks: read
-            statuses: read
-        uses: CLDMV/.github/.github/workflows/workflow-release-merge.yml@v4
-        secrets:
-            # Map your repo/org secrets to the expected names.
-            BOT_APP_CLIENT_ID: ${{ secrets.CLDMV_BOT_APP_CLIENT_ID }}
-            BOT_APP_PRIVATE_KEY: ${{ secrets.CLDMV_BOT_APP_PRIVATE_KEY }}
+  merge:
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: read
+      statuses: read
+    uses: CLDMV/.github/.github/workflows/workflow-release-merge.yml@v4
+    secrets:
+      # Map your repo/org secrets to the expected names.
+      BOT_APP_CLIENT_ID: ${{ secrets.CLDMV_BOT_APP_CLIENT_ID }}
+      BOT_APP_PRIVATE_KEY: ${{ secrets.CLDMV_BOT_APP_PRIVATE_KEY }}

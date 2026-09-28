@@ -17,12 +17,12 @@
 name: 🔬 OpenSSF Scorecard
 
 on:
-    branch_protection_rule:
-    schedule:
-        - cron: "32 7 * * 1" # weekly Monday 07:32 UTC
-    push:
-        branches: [master, main]
-    workflow_dispatch:
+  branch_protection_rule:
+  schedule:
+    - cron: "32 7 * * 1" # weekly Monday 07:32 UTC
+  push:
+    branches: [master, main]
+  workflow_dispatch:
 
 # Caller must grant what the reusable needs — notably id-token: write for the
 # OpenSSF transparency-log publish.
@@ -47,14 +47,14 @@ on:
 # to false instead (SARIF-to-Security-tab upload, no public badge).
 
 permissions:
-    contents: read
+  contents: read
 
 jobs:
-    analyze:
-        permissions:
-            id-token: write
-            contents: read
-            actions: read
-        uses: CLDMV/.github/.github/workflows/reusable-scorecard.yml@v4
-        with:
-            publish_results: true # set false to skip the public badge in favor of SARIF-to-Security-tab. Private repos need not bother: every scorecard job auto-skips there (OpenSSF cannot publish private repos, so the run would only burn paid minutes).
+  analyze:
+    permissions:
+      id-token: write
+      contents: read
+      actions: read
+    uses: CLDMV/.github/.github/workflows/reusable-scorecard.yml@v4
+    with:
+      publish_results: true # set false to skip the public badge in favor of SARIF-to-Security-tab. Private repos need not bother: every scorecard job auto-skips there (OpenSSF cannot publish private repos, so the run would only burn paid minutes).
