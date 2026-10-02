@@ -1,3 +1,18 @@
+/**
+ *
+ *	@Project: @cldmv/holdmytask
+ *	@Filename: /tests/BypassDelayCompletionTiming.test.vitest.mjs
+ *	@Date: 2026-08-08T23:20:02-07:00 (1786256402)
+ *	@Author: Nate Corcoran <CLDMV>
+ *	@Email: <Shinrai@users.noreply.github.com>
+ *	-----
+ *	@Last modified by: Nate Corcoran <CLDMV> (Shinrai@users.noreply.github.com)
+ *	@Last modified time: 2026-10-02T12:20:30-07:00 (1790968830)
+ *	-----
+ *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
+ *
+ */
+
 import { test, expect, describe, vi } from "vitest";
 import { HoldMyTask } from "../src/hold-my-task.mjs";
 
