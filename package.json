@@ -38,7 +38,8 @@
 		"build": "node build.mjs",
 		"build:types": "tsc --project .configs/tsconfig.dts.jsonc",
 		"build:ci": "npm run build:types && npm run test:types && npm run build",
-		"precommit": "npm run build:types && npm run test:types && npm run lint && npm run test"
+		"precommit": "npm run build:types && npm run test:types && npm run lint && npm run test",
+		"fix:headers": "fix-headers --config .configs/fix-headers.json"
 	},
 	"keywords": [
 		"task",
@@ -80,6 +81,8 @@
 	},
 	"type": "module",
 	"devDependencies": {
+		"@cldmv/configs": "^1.2.0",
+		"@cldmv/fix-headers": "^2.1.1",
 		"@cldmv/vitest-runner": "^1.2.0",
 		"@eslint/css": "^1.4.0",
 		"@eslint/js": "^10.0.1",
