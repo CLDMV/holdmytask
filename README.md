@@ -10,6 +10,20 @@
 
 A tiny, dependency-free task queue for Node.js that executes tasks with priority ordering, concurrency control, and completion delays. Perfect for managing asynchronous workflows with sophisticated timing requirements.
 
+## ✨ What's New
+
+### Latest: v2.0.4 (October 2026)
+
+- **Security patch for development tooling** — Updates `brace-expansion` to 5.0.12, fixing [GHSA-q2hr-2g5m-vwhr](https://github.com/advisories/GHSA-q2hr-2g5m-vwhr), a quadratic-time denial of service in a development-only dependency pulled in by `minimatch`. It also moves `@eslint/css` to 2.0.0 and `prettier` to 3.9.9. No runtime code changed, so this is a drop-in upgrade from v2.0.3.
+- [View full v2.0.4 Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.4.md)
+
+### Recent Releases
+
+- **v2.0.3** (October 2026) — Development toolchain moves to vitest 5; bundle-size and v4 workflow updates ([Release](https://github.com/CLDMV/holdmytask/releases/tag/v2.0.3))
+- **v2.0.2** (September 2026) — Development dependency update (`@humanfs/node`); no runtime changes ([Release](https://github.com/CLDMV/holdmytask/releases/tag/v2.0.2))
+- **v2.0.1** (September 2026) — ESLint patch-group and `@html-eslint` updates; removed a redundant `timeoutId` declaration ([Release](https://github.com/CLDMV/holdmytask/releases/tag/v2.0.1))
+- **v2.0.0** (August 2026) — `HoldMyTask` and its aliases (`Queue`, `TaskManager`, …) are now the real class, a breaking change; scheduler deadlock fix; namespaced `holdmytask-dev` devcheck condition ([Release](https://github.com/CLDMV/holdmytask/releases/tag/v2.0.0))
+
 ## ✨ Features
 
 - **Smart scheduling** - Dynamic timeout-based scheduling for optimal performance
