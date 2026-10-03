@@ -21,11 +21,20 @@
  *
  * @module holdmytask
  */
+"use strict";
 
-const { createRequire } = require("module");
-const requireESM = createRequire(__filename);
+// index.cjs is a thin wrapper: it loads index.mjs through Node's synchronous require(esm).
+// Node.js versions without require(esm) would fail with a bare ERR_REQUIRE_ESM, so fail
+// early with a message that says what to do instead.
+if (!process.features?.require_module) {
+	const error = new Error(
+		`@cldmv/holdmytask: require() needs Node.js ^20.19.0 or >=22.12.0 (this is ${process.version}). On older Node.js, load the package with import() instead.`
+	);
+	error.code = "ERR_REQUIRE_ESM";
+	throw error;
+}
 
-const { HoldMyTask } = requireESM("./index.mjs");
+const { HoldMyTask } = require("./index.mjs");
 
 // Export main class
 module.exports = HoldMyTask; // Default export

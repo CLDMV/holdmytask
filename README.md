@@ -10,6 +10,21 @@
 
 A tiny, dependency-free task queue for Node.js that executes tasks with priority ordering, concurrency control, and completion delays. Perfect for managing asynchronous workflows with sophisticated timing requirements.
 
+## ✨ What's New
+
+### Latest: v2.0.4 (October 2026)
+
+- **Clearer `require()` failure on older Node.js** — The CommonJS entry now throws an `ERR_REQUIRE_ESM` error that names the supported Node.js versions (`^20.19.0` or `>=22.12.0`) and points to `import()`, instead of a bare error on versions without `require(esm)`. Behavior on supported versions is unchanged.
+- **Security patch for development tooling** — Updates `brace-expansion` to 5.0.12, fixing [GHSA-q2hr-2g5m-vwhr](https://github.com/advisories/GHSA-q2hr-2g5m-vwhr), a quadratic-time denial of service in a development-only dependency pulled in by `minimatch`. `@eslint/css` moves to 2.0.0 and `prettier` to 3.9.9.
+- [View full v2.0.4 Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.4.md)
+
+### Recent Releases
+
+- **v2.0.3** (October 2026) — Development toolchain moves to vitest 5; bundle-size and v4 workflow updates; verbatim Apache-2.0 license text ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.3.md))
+- **v2.0.2** (September 2026) — Development dependency update (`@humanfs/node`); no other changes ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.2.md))
+- **v2.0.1** (September 2026) — Fix: a task's timeout timer is now cleared when the task fails or is cancelled ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.1.md))
+- **v2.0.0** (August 2026) — `HoldMyTask` and its aliases are the real class again (breaking for code adapted to v1.6.1's factories); scheduler deadlock fix; `holdmytask-dev` export condition ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.0.md))
+
 ## ✨ Features
 
 - **Smart scheduling** - Dynamic timeout-based scheduling for optimal performance
