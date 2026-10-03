@@ -1,14 +1,18 @@
 # @cldmv/holdmytask
 
-[![npm version](https://img.shields.io/npm/v/%40cldmv%2Fholdmytask.svg?style=for-the-badge&logo=npm&logoColor=white&labelColor=CB3837)](https://www.npmjs.com/package/@cldmv/holdmytask)
-[![npm downloads](https://img.shields.io/npm/dm/%40cldmv%2Fholdmytask.svg?style=for-the-badge&logo=npm&logoColor=white&labelColor=CB3837)](https://www.npmjs.com/package/@cldmv/holdmytask)
-[![GitHub downloads](https://img.shields.io/github/downloads/CLDMV/holdmytask/total?style=for-the-badge&logo=github&logoColor=white&labelColor=181717)](https://github.com/CLDMV/holdmytask/releases)
-[![Last commit](https://img.shields.io/github/last-commit/CLDMV/holdmytask?style=for-the-badge&logo=github&logoColor=white&labelColor=181717)](https://github.com/CLDMV/holdmytask/commits)
-[![npm last update](https://img.shields.io/npm/last-update/%40cldmv%2Fholdmytask?style=for-the-badge&logo=npm&logoColor=white&labelColor=CB3837)](https://www.npmjs.com/package/@cldmv/holdmytask)
+**@cldmv/holdmytask** is a tiny, dependency-free task queue for Node.js that executes tasks with priority ordering, concurrency control, and completion delays. It is built for asynchronous workflows with real timing requirements: rate-limited APIs, device control, UI refreshes, and anything else where _when_ a task runs matters as much as _whether_ it runs.
 
-[![Contributors](https://img.shields.io/github/contributors/CLDMV/holdmytask.svg?style=for-the-badge&logo=github&logoColor=white&labelColor=181717)](https://github.com/CLDMV/holdmytask/graphs/contributors) [![Sponsor shinrai](https://img.shields.io/github/sponsors/shinrai?style=for-the-badge&logo=githubsponsors&logoColor=white&labelColor=EA4AAA&label=Sponsor)](https://github.com/sponsors/shinrai)
+Every task can carry a priority, a scheduled start time, a timeout, an `AbortSignal`, and metadata. Per-priority concurrency limits and pre/post delays shape throughput, urgent work can bypass an active delay, and tasks that share a coalescing key collapse into a single execution whose result resolves every caller. Smart scheduling sets precise timers for the next ready task instead of polling.
 
-A tiny, dependency-free task queue for Node.js that executes tasks with priority ordering, concurrency control, and completion delays. Perfect for managing asynchronous workflows with sophisticated timing requirements.
+Use it with callbacks or promises, from ESM or CommonJS, with full TypeScript definitions included.
+
+> _A tiny task queue that waits until your task is ready._
+
+[![npm version]][npm_version_url] [![npm downloads]][npm_downloads_url] [![GitHub downloads]][github_downloads_url] [![Last commit]][last_commit_url] [![npm last update]][npm_last_update_url] [![coverage]][coverage_url]
+
+[![Contributors]][contributors_url] [![Sponsor shinrai]][sponsor_url]
+
+---
 
 ## ✨ What's New
 
@@ -25,7 +29,11 @@ A tiny, dependency-free task queue for Node.js that executes tasks with priority
 - **v2.0.1** (September 2026) — Fix: a task's timeout timer is now cleared when the task fails or is cancelled ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.1.md))
 - **v2.0.0** (August 2026) — `HoldMyTask` and its aliases are the real class again (breaking for code adapted to v1.6.1's factories); scheduler deadlock fix; `holdmytask-dev` export condition ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.0.md))
 
-## ✨ Features
+📚 **For complete version history and detailed release notes, see the [docs/changelog/](https://github.com/CLDMV/holdmytask/tree/master/docs/changelog/) folder.**
+
+---
+
+## 🚀 Key Features
 
 - **Smart scheduling** - Dynamic timeout-based scheduling for optimal performance
 - **Task coalescing** - Intelligent merging of similar tasks for efficiency
@@ -40,66 +48,22 @@ A tiny, dependency-free task queue for Node.js that executes tasks with priority
 - **TypeScript ready** - Full type definitions included
 - **Zero dependencies** - Lightweight and fast
 
+---
+
 ## 📦 Installation
+
+### Requirements
+
+- **Node.js v18.12.0 or higher** for ESM (`import`), as declared in the package's `engines` field
+- **CommonJS `require()`** needs Node.js `^20.19.0` or `>=22.12.0`. The CommonJS entry is a thin wrapper that loads the ESM build through Node's synchronous `require(esm)`. On older Node.js versions `require("@cldmv/holdmytask")` throws an `ERR_REQUIRE_ESM` error that names the supported versions; load the package with `import()` instead.
+
+### Install
 
 ```bash
 npm install @cldmv/holdmytask
 ```
 
-## � Import Options
-
-The library provides flexible import options for different use cases:
-
-### Production (Default)
-
-```javascript
-// Named import
-import { HoldMyTask } from "@cldmv/holdmytask";
-
-// Default import
-import HoldMyTask from "@cldmv/holdmytask";
-
-// Import everything
-import * as HoldMyTaskLib from "@cldmv/holdmytask";
-// Uses optimized distribution files
-```
-
-### Development Source Access
-
-```javascript
-import { HoldMyTask } from "@cldmv/holdmytask/main";
-// Conditional: uses source files in development, dist files in production
-```
-
-### Common Queue System Aliases
-
-For familiarity with other queue systems, several aliases are available:
-
-```javascript
-import {
-	HoldMyTask, // Original class name
-	queue, // Lower-case alias for common conventions
-	Queue, // Standard queue naming
-	TaskManager, // Task management systems
-	TaskQueue, // Task-specific queuing
-	QueueManager, // Queue management systems
-	TaskProcessor // Task processing systems
-} from "@cldmv/holdmytask";
-
-// All aliases are functionally identical
-const myQueue = new queue({ concurrency: 5 });
-const stdQueue = new Queue({ concurrency: 5 });
-const manager = new TaskManager({ priorities: { high: { delay: 100 } } });
-```
-
-### Direct Source Import (Development Only)
-
-```javascript
-import { HoldMyTask } from "@cldmv/holdmytask/src";
-// Always uses source files - bypasses devcheck
-```
-
-**Note:** The main import automatically runs environment checks in development mode to ensure proper configuration.
+---
 
 ## 🚀 Quick Start
 
@@ -108,9 +72,16 @@ import { HoldMyTask } from "@cldmv/holdmytask";
 
 const queue = new HoldMyTask({
 	concurrency: 2,
-	delays: { 1: 100, 2: 200 }, // 100ms delay after priority 1 tasks, 200ms after priority 2
-	coalescingWindowDuration: 200, // Group similar tasks within 200ms
-	coalescingMaxDelay: 1000 // Force execution after 1000ms max
+	priorities: {
+		1: { postDelay: 100 }, // 100ms delay after priority 1 tasks
+		2: { postDelay: 200 } // 200ms delay after priority 2 tasks
+	},
+	coalescing: {
+		defaults: {
+			windowDuration: 200, // Group similar tasks within 200ms
+			maxDelay: 1000 // Force execution after 1000ms max
+		}
+	}
 });
 
 // Enqueue a task
@@ -137,6 +108,72 @@ const results = await Promise.all([
 ]);
 // Only one updateUI() call executes, all three promises resolve with the same result
 ```
+
+CommonJS works the same way: `const { HoldMyTask } = require("@cldmv/holdmytask")` (see [Requirements](#requirements) for the Node.js versions that support `require()`).
+
+---
+
+## 📥 Import Options
+
+The library provides flexible import options for different use cases:
+
+### Production (Default)
+
+```javascript
+// Named import
+import { HoldMyTask } from "@cldmv/holdmytask";
+
+// Default import
+import HoldMyTask from "@cldmv/holdmytask";
+
+// Import everything
+import * as HoldMyTaskLib from "@cldmv/holdmytask";
+// Uses optimized distribution files
+
+// CommonJS (Node.js ^20.19.0 or >=22.12.0)
+const HoldMyTask = require("@cldmv/holdmytask"); // the class itself
+const { HoldMyTask: Named } = require("@cldmv/holdmytask"); // or by name
+```
+
+### Common Queue System Aliases
+
+For familiarity with other queue systems, several aliases are available:
+
+```javascript
+import {
+	HoldMyTask, // Original class name
+	queue, // Lower-case alias for common conventions
+	Queue, // Standard queue naming
+	TaskManager, // Task management systems
+	TaskQueue, // Task-specific queuing
+	QueueManager, // Queue management systems
+	TaskProcessor // Task processing systems
+} from "@cldmv/holdmytask";
+
+// All aliases are functionally identical
+const myQueue = new queue({ concurrency: 5 });
+const stdQueue = new Queue({ concurrency: 5 });
+const manager = new TaskManager({ priorities: { high: { postDelay: 100 } } });
+```
+
+The ESM entry also exports async factory helpers that resolve to a new instance: `createHoldMyTask(options)`, `createQueue(options)`, `createTaskManager(options)`, and `createTaskProcessor(options)`.
+
+### Development Source Access
+
+```javascript
+import { HoldMyTask } from "@cldmv/holdmytask/main";
+// Resolves to dist files by default; resolves to src/ when Node.js runs with the holdmytask-dev condition
+```
+
+To run against the unbuilt source (from a checkout of this repository), start Node.js with the `holdmytask-dev` export condition:
+
+```bash
+node --conditions=holdmytask-dev your-script.mjs
+```
+
+**Note:** In a checkout of this repository, the root import runs a best-effort development environment check (`devcheck.mjs`) that exits with setup instructions when `src/` is present but the `holdmytask-dev` condition is not set. The check is skipped when the package is installed as a dependency and in CI.
+
+---
 
 ## 🔄 Promise API
 
@@ -179,6 +216,8 @@ queue.enqueue(task1, callback, options);
 // Promise-based
 const result = await queue.enqueue(task2, options);
 ```
+
+---
 
 ## 🏗️ Async Constructor Pattern
 
@@ -241,6 +280,8 @@ This pattern is particularly useful for:
 - **Resource acquisition**: Set up required resources in a controlled manner
 - **Dependency injection**: Initialize dependencies in the correct order
 
+---
+
 ## 📚 API Reference
 
 ### Constructor
@@ -288,11 +329,11 @@ This pattern is particularly useful when you need to handle initialization error
   - `defaults` (object) - Default settings for all coalescing keys
     - `windowDuration` (number, default: 200) - Window duration in milliseconds
     - `maxDelay` (number, default: 1000) - Maximum delay before forcing execution
-    - `delay` (number) - Default completion delay for coalescing tasks
-    - `start` (number) - Default start delay for coalescing tasks
+    - `postDelay` (number) - Default completion delay for coalescing tasks (`delay` is the deprecated name)
+    - `startDelay` (number) - Default start delay for coalescing tasks (`start` is the deprecated name)
     - `resolveAllPromises` (boolean, default: true) - Whether all promises resolve with result
     - `multipleCallbacks` (boolean, default: false) - Whether to call multiple callbacks
-  - `keys` (object) - Per-key configuration overrides: `{ [key]: { windowDuration, maxDelay, delay, start, ... } }`
+  - `keys` (object) - Per-key configuration overrides: `{ [key]: { windowDuration, maxDelay, postDelay, startDelay, ... } }`
 - `coalescingWindowDuration` (number, default: 200) - **DEPRECATED:** Use `coalescing.defaults.windowDuration`
 - `coalescingMaxDelay` (number, default: 1000) - **DEPRECATED:** Use `coalescing.defaults.maxDelay`
 - `coalescingResolveAllPromises` (boolean, default: true) - **DEPRECATED:** Use `coalescing.defaults.resolveAllPromises`
@@ -439,10 +480,10 @@ queue.enqueue(task2, { id: "duplicate" }); // throws: Task ID "duplicate" alread
 
 - `configurePriority(priority, config)` - Configure or update priority-specific settings
   - `priority` (string|number) - Priority level to configure
-  - `config` (object) - Configuration: `{ delay?, maxDelay?, start? }`
+  - `config` (object) - Configuration: `{ postDelay?, startDelay? }` (the deprecated `delay` / `start` names are still accepted)
 - `configureCoalescingKey(key, config)` - Configure or update coalescing key settings
   - `key` (string) - Coalescing key to configure
-  - `config` (object) - Configuration: `{ windowDuration?, maxDelay?, delay?, start?, multipleCallbacks?, resolveAllPromises? }`
+  - `config` (object) - Configuration: `{ windowDuration?, maxDelay?, postDelay?, startDelay?, multipleCallbacks?, resolveAllPromises? }` (the deprecated `delay` / `start` names are still accepted)
 - `getPriorityConfig(priority, taskOptions?)` - Get effective configuration for a specific priority
 - `getPriorityConfigurations()` - Get all configured priorities and their settings
 - `getCoalescingConfig(coalescingKey, taskOptions?)` - Get effective configuration for a specific coalescing key
@@ -639,6 +680,8 @@ queue.on("warning", (warning) => {
 // In: constructor options
 ```
 
+---
+
 ## ⚙️ Concurrency & Delays Interaction
 
 Understanding how concurrency and delays work together is crucial for optimal queue behavior:
@@ -709,10 +752,6 @@ HoldMyTask uses a sophisticated dual-heap scheduling system for optimal performa
 
 This architecture enables handling thousands of tasks with precise timing control while maintaining excellent performance.
 
-[![CodeFactor](https://img.shields.io/codefactor/grade/github/CLDMV/holdmytask?style=for-the-badge&logo=codefactor&logoColor=white&labelColor=F44A6A)](https://www.codefactor.io/repository/github/cldmv/holdmytask) [![npms.io score](https://img.shields.io/npms-io/final-score/%40cldmv%2Fholdmytask?style=for-the-badge&logo=npms&logoColor=white&labelColor=0B5D57)](https://npms.io/search?q=%40cldmv%2Fholdmytask)
-
-[![npm unpacked size](https://img.shields.io/npm/unpacked-size/%40cldmv%2Fholdmytask.svg?style=for-the-badge&logo=npm&logoColor=white&labelColor=CB3837)](https://www.npmjs.com/package/@cldmv/holdmytask) [![Repo size](https://img.shields.io/github/repo-size/CLDMV/holdmytask?style=for-the-badge&logo=github&logoColor=white&labelColor=181717)](https://github.com/CLDMV/holdmytask)
-
 ### Unlimited Queue Capacity
 
 For scenarios requiring unlimited task queuing, you can set `maxQueue` to `-1`:
@@ -739,6 +778,8 @@ for (let i = 0; i < 100000; i++) {
 **Memory Considerations:**
 
 While `-1` allows unlimited queuing, be mindful of memory usage with very large task sets. Each queued task consumes memory until executed.
+
+---
 
 ## 🎯 Advanced Features
 
@@ -1058,6 +1099,8 @@ queue.enqueue(taskD, callback, { priority: 1 }); // Waits for taskC's completion
 - ✅ **Scans entire queue** - finds bypass tasks even when normal tasks are blocked
 - ✅ **Concurrency aware** - works correctly with multiple concurrent execution slots
 - ⚠️ **Use sparingly** - frequent bypassing defeats the purpose of delay-based rate limiting
+
+---
 
 ## 🔄 Task Coalescing System
 
@@ -1476,7 +1519,9 @@ function processVolumeCommands() {
 // - Total time: ~25-30 seconds (vs 50+ seconds without coalescing)
 ```
 
-### Timeouts
+---
+
+## ⏱️ Timeouts
 
 Tasks automatically timeout and either call the callback with an error or reject the promise:
 
@@ -1517,6 +1562,8 @@ try {
 	}
 }
 ```
+
+---
 
 ## 🛑 AbortController Support
 
@@ -1679,6 +1726,8 @@ try {
 - **Cooperative**: Tasks must actively check and respond to the abort signal
 - **Async operations**: Only cancellable if the underlying operation supports AbortSignal
 
+---
+
 ## 📝 Examples
 
 ### Basic Usage
@@ -1813,23 +1862,26 @@ setInterval(() => {
 }, 1000);
 ```
 
+---
+
 ## 🧪 Testing & Development
 
 ```bash
-# Run tests
+# Run tests (vitest suite + CommonJS entry tests)
 npm test
 
 # Run tests with coverage
-npm run test:coverage
+npm run coverage
 
 # Run tests in watch mode
-npm run test:run
+npm run test:watch
 
-# Lint code
+# Lint and format check
 npm run lint
+npm run format:check
 
-# Build for publishing
-npm run build
+# Build types, type-check, and build for publishing
+npm run build:ci
 ```
 
 ### Testing with Injectable Clock
@@ -1853,21 +1905,74 @@ console.log(Date.now()); // Returns actual system time
 queue.enqueue(task, { timestamp: queue.now() + 5000 }); // 5 seconds from mock time
 ```
 
-## 📄 License
+---
 
-[![GitHub license](https://img.shields.io/github/license/CLDMV/holdmytask.svg?style=for-the-badge&logo=github&logoColor=white&labelColor=181717)](https://github.com/CLDMV/holdmytask/blob/HEAD/LICENSE) [![npm license](https://img.shields.io/npm/l/%40cldmv%2Fholdmytask.svg?style=for-the-badge&logo=npm&logoColor=white&labelColor=CB3837)](https://www.npmjs.com/package/@cldmv/holdmytask)
+## 📚 Documentation
 
-Apache License 2.0 - see [LICENSE](LICENSE) file for details.
+- **[Changelog](https://github.com/CLDMV/holdmytask/tree/master/docs/changelog/)** — release notes for every version (v1 + v2)
+- **[Examples](https://github.com/CLDMV/holdmytask/tree/master/examples/)** — runnable scripts exercising priorities, coalescing, and stress scenarios
+- **[Type definitions](https://github.com/CLDMV/holdmytask/tree/master/types/)** — the TypeScript declarations shipped with the package
+
+[![CodeFactor]][codefactor_url] [![OpenSSF Scorecard]][ossf_scorecard_url] [![npms.io score]][npms_url] [![npm unpacked size]][npm_size_url] [![Repo size]][repo_size_url]
+
+---
 
 ## 🤝 Contributing
 
-Contributions welcome! Please ensure:
+Contributions are welcome! Please ensure:
 
 - All tests pass
 - Code follows existing style
 - New features include tests
 - Documentation is updated
 
+[![Contributors]][contributors_url] [![Sponsor shinrai]][sponsor_url]
+
 ---
 
-**Made with ❤️ for robust task management**
+## 🔗 Links
+
+- **npm**: [@cldmv/holdmytask](https://www.npmjs.com/package/@cldmv/holdmytask)
+- **GitHub**: [CLDMV/holdmytask](https://github.com/CLDMV/holdmytask)
+- **Issues**: [GitHub Issues](https://github.com/CLDMV/holdmytask/issues)
+- **Changelog**: [docs/changelog/](https://github.com/CLDMV/holdmytask/tree/master/docs/changelog/)
+- **Releases**: [GitHub Releases](https://github.com/CLDMV/holdmytask/releases)
+
+---
+
+## 📄 License
+
+[![GitHub license]][github_license_url] [![npm license]][npm_license_url]
+
+Apache-2.0 © Shinrai / CLDMV — see [LICENSE](https://github.com/CLDMV/holdmytask/blob/HEAD/LICENSE) for details.
+
+[npm version]: https://img.shields.io/npm/v/%40cldmv%2Fholdmytask.svg?style=for-the-badge&logo=npm&logoColor=white&labelColor=CB3837
+[npm_version_url]: https://www.npmjs.com/package/@cldmv/holdmytask
+[last commit]: https://img.shields.io/github/last-commit/CLDMV/holdmytask?style=for-the-badge&logo=github&logoColor=white&labelColor=181717
+[last_commit_url]: https://github.com/CLDMV/holdmytask/commits
+[npm last update]: https://img.shields.io/npm/last-update/%40cldmv%2Fholdmytask?style=for-the-badge&logo=npm&logoColor=white&labelColor=CB3837
+[npm_last_update_url]: https://www.npmjs.com/package/@cldmv/holdmytask
+[codefactor]: https://img.shields.io/codefactor/grade/github/CLDMV/holdmytask?style=for-the-badge&logo=codefactor&logoColor=white&labelColor=F44A6A
+[codefactor_url]: https://www.codefactor.io/repository/github/cldmv/holdmytask
+[openssf scorecard]: https://img.shields.io/ossf-scorecard/github.com/CLDMV/holdmytask?style=for-the-badge&label=OpenSSF%20Scorecard
+[ossf_scorecard_url]: https://scorecard.dev/viewer/?uri=github.com/CLDMV/holdmytask
+[npms.io score]: https://img.shields.io/npms-io/final-score/%40cldmv%2Fholdmytask?style=for-the-badge&logo=npms&logoColor=white&labelColor=0B5D57
+[npms_url]: https://npms.io/search?q=%40cldmv%2Fholdmytask
+[npm downloads]: https://img.shields.io/npm/dm/%40cldmv%2Fholdmytask.svg?style=for-the-badge&logo=npm&logoColor=white&labelColor=CB3837
+[npm_downloads_url]: https://www.npmjs.com/package/@cldmv/holdmytask
+[github downloads]: https://img.shields.io/github/downloads/CLDMV/holdmytask/total?style=for-the-badge&logo=github&logoColor=white&labelColor=181717
+[github_downloads_url]: https://github.com/CLDMV/holdmytask/releases
+[npm unpacked size]: https://img.shields.io/npm/unpacked-size/%40cldmv%2Fholdmytask.svg?style=for-the-badge&logo=npm&logoColor=white&labelColor=CB3837
+[npm_size_url]: https://www.npmjs.com/package/@cldmv/holdmytask
+[repo size]: https://img.shields.io/github/repo-size/CLDMV/holdmytask?style=for-the-badge&logo=github&logoColor=white&labelColor=181717
+[repo_size_url]: https://github.com/CLDMV/holdmytask
+[github license]: https://img.shields.io/github/license/CLDMV/holdmytask.svg?style=for-the-badge&logo=github&logoColor=white&labelColor=181717
+[github_license_url]: https://github.com/CLDMV/holdmytask/blob/HEAD/LICENSE
+[npm license]: https://img.shields.io/npm/l/%40cldmv%2Fholdmytask.svg?style=for-the-badge&logo=npm&logoColor=white&labelColor=CB3837
+[npm_license_url]: https://www.npmjs.com/package/@cldmv/holdmytask
+[coverage]: https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FCLDMV%2Fholdmytask%2Fbadges%2Fcoverage.json&style=for-the-badge&logo=vitest&logoColor=white
+[coverage_url]: https://github.com/CLDMV/holdmytask/blob/badges/coverage.json
+[contributors]: https://img.shields.io/github/contributors/CLDMV/holdmytask.svg?style=for-the-badge&logo=github&logoColor=white&labelColor=181717
+[contributors_url]: https://github.com/CLDMV/holdmytask/graphs/contributors
+[sponsor shinrai]: https://img.shields.io/github/sponsors/shinrai?style=for-the-badge&logo=githubsponsors&logoColor=white&labelColor=EA4AAA&label=Sponsor
+[sponsor_url]: https://github.com/sponsors/shinrai
