@@ -1,10 +1,16 @@
 /**
- * @Project: @cldmv/holdmytask
- * @Filename: /tests/CoalescingTasks.test.vitest.mjs
- * @Date: 2025-11-11
- * @Author: Assistant
- * -----
- * @Copyright: Copyright (c) 2013-2025 Catalyzed Motivation Inc. All rights reserved.
+ *
+ *	@Project: @cldmv/holdmytask
+ *	@Filename: /tests/CoalescingTasks.test.vitest.mjs
+ *	@Date: 2026-08-02T23:39:12-07:00 (1785739152)
+ *	@Author: Nate Corcoran <CLDMV>
+ *	@Email: <Shinrai@users.noreply.github.com>
+ *	-----
+ *	@Last modified by: Nate Corcoran <CLDMV> (Shinrai@users.noreply.github.com)
+ *	@Last modified time: 2026-10-02T12:20:31-07:00 (1790968831)
+ *	-----
+ *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
+ *
  */
 
 import { HoldMyTask } from "../src/hold-my-task.mjs";
