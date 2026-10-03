@@ -1,10 +1,16 @@
 /**
- * Test with Proper Queue Delays
  *
- * This tests the scenario you described:
- * - Volume commands with 100ms delay (after completion)
- * - Info requests with 500ms delay (after completion)
- * - This should allow 2 volume updates to complete before info request
+ *	@Project: @cldmv/holdmytask
+ *	@Filename: /examples/old/proper-delay-test.mjs
+ *	@Date: 2025-11-12T17:17:47-08:00 (1762996667)
+ *	@Author: Nate Corcoran <CLDMV>
+ *	@Email: <Shinrai@users.noreply.github.com>
+ *	-----
+ *	@Last modified by: Nate Corcoran <CLDMV> (Shinrai@users.noreply.github.com)
+ *	@Last modified time: 2026-10-02T12:20:23-07:00 (1790968823)
+ *	-----
+ *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
+ *
  */
 declare class SimpleDevice {
 	volume: number;
