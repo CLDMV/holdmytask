@@ -24,12 +24,13 @@
 		"node": ">=18.12"
 	},
 	"scripts": {
-		"test": "node tests/run-vitest.mjs",
+		"test": "node tests/run-vitest.mjs && npm run test:cjs",
+		"test:cjs": "node --conditions=holdmytask-dev --test tests/cjs/entry.test.cjs",
 		"test:watch": "vitest --config .configs/vitest.config.mjs",
 		"test:run": "vitest run",
 		"test:coverage": "vitest run --coverage",
 		"test:types": "tsc --noEmit --project .configs/tsconfig.dts.jsonc",
-		"coverage": "node tests/run-vitest.mjs --coverage-quiet",
+		"coverage": "node tests/run-vitest.mjs --coverage-quiet && npm run test:cjs",
 		"ci:coverage": "npm run coverage",
 		"lint": "eslint --config .configs/eslint.config.mjs .",
 		"lint:fix": "eslint --config .configs/eslint.config.mjs . --fix",
