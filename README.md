@@ -1,14 +1,18 @@
 # @cldmv/holdmytask
 
-[![npm version](https://img.shields.io/npm/v/%40cldmv%2Fholdmytask.svg?style=for-the-badge&logo=npm&logoColor=white&labelColor=CB3837)](https://www.npmjs.com/package/@cldmv/holdmytask)
-[![npm downloads](https://img.shields.io/npm/dm/%40cldmv%2Fholdmytask.svg?style=for-the-badge&logo=npm&logoColor=white&labelColor=CB3837)](https://www.npmjs.com/package/@cldmv/holdmytask)
-[![GitHub downloads](https://img.shields.io/github/downloads/CLDMV/holdmytask/total?style=for-the-badge&logo=github&logoColor=white&labelColor=181717)](https://github.com/CLDMV/holdmytask/releases)
-[![Last commit](https://img.shields.io/github/last-commit/CLDMV/holdmytask?style=for-the-badge&logo=github&logoColor=white&labelColor=181717)](https://github.com/CLDMV/holdmytask/commits)
-[![npm last update](https://img.shields.io/npm/last-update/%40cldmv%2Fholdmytask?style=for-the-badge&logo=npm&logoColor=white&labelColor=CB3837)](https://www.npmjs.com/package/@cldmv/holdmytask)
+**@cldmv/holdmytask** is a tiny, dependency-free task queue for Node.js that executes tasks with priority ordering, concurrency control, and completion delays. It is built for asynchronous workflows with real timing requirements: rate-limited APIs, device control, UI refreshes, and anything else where _when_ a task runs matters as much as _whether_ it runs.
 
-[![Contributors](https://img.shields.io/github/contributors/CLDMV/holdmytask.svg?style=for-the-badge&logo=github&logoColor=white&labelColor=181717)](https://github.com/CLDMV/holdmytask/graphs/contributors) [![Sponsor shinrai](https://img.shields.io/github/sponsors/shinrai?style=for-the-badge&logo=githubsponsors&logoColor=white&labelColor=EA4AAA&label=Sponsor)](https://github.com/sponsors/shinrai)
+Every task can carry a priority, a scheduled start time, a timeout, an `AbortSignal`, and metadata. Per-priority concurrency limits and pre/post delays shape throughput, urgent work can bypass an active delay, and tasks that share a coalescing key collapse into a single execution whose result resolves every caller. Smart scheduling sets precise timers for the next ready task instead of polling.
 
-A tiny, dependency-free task queue for Node.js that executes tasks with priority ordering, concurrency control, and completion delays. Perfect for managing asynchronous workflows with sophisticated timing requirements.
+Use it with callbacks or promises, from ESM or CommonJS, with full TypeScript definitions included.
+
+> _A tiny task queue that waits until your task is ready._
+
+[![npm version]][npm_version_url] [![npm downloads]][npm_downloads_url] [![GitHub downloads]][github_downloads_url] [![Last commit]][last_commit_url] [![npm last update]][npm_last_update_url] [![coverage]][coverage_url]
+
+[![Contributors]][contributors_url] [![Sponsor shinrai]][sponsor_url]
+
+---
 
 ## ✨ What's New
 
@@ -25,7 +29,11 @@ A tiny, dependency-free task queue for Node.js that executes tasks with priority
 - **v2.0.1** (September 2026) — Fix: a task's timeout timer is now cleared when the task fails or is cancelled ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.1.md))
 - **v2.0.0** (August 2026) — `HoldMyTask` and its aliases are the real class again (breaking for code adapted to v1.6.1's factories); scheduler deadlock fix; `holdmytask-dev` export condition ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.0.md))
 
-## ✨ Features
+📚 **For complete version history and detailed release notes, see the [docs/changelog/](https://github.com/CLDMV/holdmytask/tree/master/docs/changelog/) folder.**
+
+---
+
+## 🚀 Key Features
 
 - **Smart scheduling** - Dynamic timeout-based scheduling for optimal performance
 - **Task coalescing** - Intelligent merging of similar tasks for efficiency
@@ -40,66 +48,22 @@ A tiny, dependency-free task queue for Node.js that executes tasks with priority
 - **TypeScript ready** - Full type definitions included
 - **Zero dependencies** - Lightweight and fast
 
+---
+
 ## 📦 Installation
+
+### Requirements
+
+- **Node.js v18.12.0 or higher** for ESM (`import`), as declared in the package's `engines` field
+- **CommonJS `require()`** needs Node.js `^20.19.0` or `>=22.12.0`. The CommonJS entry is a thin wrapper that loads the ESM build through Node's synchronous `require(esm)`. On older Node.js versions `require("@cldmv/holdmytask")` throws an `ERR_REQUIRE_ESM` error that names the supported versions; load the package with `import()` instead.
+
+### Install
 
 ```bash
 npm install @cldmv/holdmytask
 ```
 
-## � Import Options
-
-The library provides flexible import options for different use cases:
-
-### Production (Default)
-
-```javascript
-// Named import
-import { HoldMyTask } from "@cldmv/holdmytask";
-
-// Default import
-import HoldMyTask from "@cldmv/holdmytask";
-
-// Import everything
-import * as HoldMyTaskLib from "@cldmv/holdmytask";
-// Uses optimized distribution files
-```
-
-### Development Source Access
-
-```javascript
-import { HoldMyTask } from "@cldmv/holdmytask/main";
-// Conditional: uses source files in development, dist files in production
-```
-
-### Common Queue System Aliases
-
-For familiarity with other queue systems, several aliases are available:
-
-```javascript
-import {
-	HoldMyTask, // Original class name
-	queue, // Lower-case alias for common conventions
-	Queue, // Standard queue naming
-	TaskManager, // Task management systems
-	TaskQueue, // Task-specific queuing
-	QueueManager, // Queue management systems
-	TaskProcessor // Task processing systems
-} from "@cldmv/holdmytask";
-
-// All aliases are functionally identical
-const myQueue = new queue({ concurrency: 5 });
-const stdQueue = new Queue({ concurrency: 5 });
-const manager = new TaskManager({ priorities: { high: { delay: 100 } } });
-```
-
-### Direct Source Import (Development Only)
-
-```javascript
-import { HoldMyTask } from "@cldmv/holdmytask/src";
-// Always uses source files - bypasses devcheck
-```
-
-**Note:** The main import automatically runs environment checks in development mode to ensure proper configuration.
+---
 
 ## 🚀 Quick Start
 
@@ -108,9 +72,16 @@ import { HoldMyTask } from "@cldmv/holdmytask";
 
 const queue = new HoldMyTask({
 	concurrency: 2,
-	delays: { 1: 100, 2: 200 }, // 100ms delay after priority 1 tasks, 200ms after priority 2
-	coalescingWindowDuration: 200, // Group similar tasks within 200ms
-	coalescingMaxDelay: 1000 // Force execution after 1000ms max
+	priorities: {
+		1: { postDelay: 100 }, // 100ms delay after priority 1 tasks
+		2: { postDelay: 200 } // 200ms delay after priority 2 tasks
+	},
+	coalescing: {
+		defaults: {
+			windowDuration: 200, // Group similar tasks within 200ms
+			maxDelay: 1000 // Force execution after 1000ms max
+		}
+	}
 });
 
 // Enqueue a task
@@ -137,6 +108,72 @@ const results = await Promise.all([
 ]);
 // Only one updateUI() call executes, all three promises resolve with the same result
 ```
+
+CommonJS works the same way: `const { HoldMyTask } = require("@cldmv/holdmytask")` (see [Requirements](#requirements) for the Node.js versions that support `require()`).
+
+---
+
+## 📥 Import Options
+
+The library provides flexible import options for different use cases:
+
+### Production (Default)
+
+```javascript
+// Named import
+import { HoldMyTask } from "@cldmv/holdmytask";
+
+// Default import
+import HoldMyTask from "@cldmv/holdmytask";
+
+// Import everything
+import * as HoldMyTaskLib from "@cldmv/holdmytask";
+// Uses optimized distribution files
+
+// CommonJS (Node.js ^20.19.0 or >=22.12.0)
+const HoldMyTask = require("@cldmv/holdmytask"); // the class itself
+const { HoldMyTask: Named } = require("@cldmv/holdmytask"); // or by name
+```
+
+### Common Queue System Aliases
+
+For familiarity with other queue systems, several aliases are available:
+
+```javascript
+import {
+	HoldMyTask, // Original class name
+	queue, // Lower-case alias for common conventions
+	Queue, // Standard queue naming
+	TaskManager, // Task management systems
+	TaskQueue, // Task-specific queuing
+	QueueManager, // Queue management systems
+	TaskProcessor // Task processing systems
+} from "@cldmv/holdmytask";
+
+// All aliases are functionally identical
+const myQueue = new queue({ concurrency: 5 });
+const stdQueue = new Queue({ concurrency: 5 });
+const manager = new TaskManager({ priorities: { 1: { postDelay: 100 } } });
+```
+
+The ESM entry also exports async factory helpers that resolve to a new instance: `createHoldMyTask(options)`, `createQueue(options)`, `createTaskManager(options)`, and `createTaskProcessor(options)`.
+
+### Development Source Access
+
+```javascript
+import { HoldMyTask } from "@cldmv/holdmytask/main";
+// Resolves to dist files by default; resolves to src/ when Node.js runs with the holdmytask-dev condition
+```
+
+To run against the unbuilt source (from a checkout of this repository), start Node.js with the `holdmytask-dev` export condition:
+
+```bash
+node --conditions=holdmytask-dev your-script.mjs
+```
+
+**Note:** In a checkout of this repository, the root import runs a best-effort development environment check (`devcheck.mjs`) that exits with setup instructions when `src/` is present but the `holdmytask-dev` condition is not set. The check is skipped when the package is installed as a dependency and in CI.
+
+---
 
 ## 🔄 Promise API
 
@@ -179,6 +216,8 @@ queue.enqueue(task1, callback, options);
 // Promise-based
 const result = await queue.enqueue(task2, options);
 ```
+
+---
 
 ## 🏗️ Async Constructor Pattern
 
@@ -241,6 +280,8 @@ This pattern is particularly useful for:
 - **Resource acquisition**: Set up required resources in a controlled manner
 - **Dependency injection**: Initialize dependencies in the correct order
 
+---
+
 ## 📚 API Reference
 
 ### Constructor
@@ -251,25 +292,22 @@ const queue = new HoldMyTask(options?)
 
 ### Async Initialization Pattern
 
-For async initialization that allows event listeners to be attached before any initialization events can fire, use `sync: false`:
+With `sync: false`, the constructor returns a Promise that resolves to the instance once initialization has run on the next turn of the event loop. The returned value is a plain Promise, so attach listeners to the resolved instance:
 
 ```javascript
 // Create instance with async initialization
-const queuePromise = new HoldMyTask({
+const queue = await new HoldMyTask({
 	concurrency: 5,
 	maxQueue: 100,
 	sync: false // Enable async initialization
 });
 
-// Attach event listeners before initialization completes
-queuePromise.on("error", (err) => console.error("Queue error:", err));
-queuePromise.on("warning", (warning) => console.warn("Warning:", warning.message));
-
-// Wait for initialization to complete
-const queue = await queuePromise;
+// Initialization warnings are emitted asynchronously, so listeners attached here still receive them
+queue.on("error", (err) => console.error("Queue error:", err));
+queue.on("warning", (warning) => console.warn("Warning:", warning.message));
 ```
 
-This pattern is particularly useful when you need to handle initialization errors or warnings through event listeners rather than try/catch blocks.
+Initialization warnings (such as [deprecation warnings](#warning-events)) are emitted on `setImmediate` in both modes, so a listener attached right after a synchronous `new HoldMyTask(...)` receives them as well.
 
 **Options:**
 
@@ -279,25 +317,24 @@ This pattern is particularly useful when you need to handle initialization error
 - `autoStart` (boolean, default: true) - Whether to start processing immediately
 - `defaultPriority` (number, default: 0) - Default task priority
 - `maxQueue` (number, default: Infinity) - Maximum queued tasks. Use `-1` for unlimited queue capacity (equivalent to `Infinity`)
-- `delays` (object, default: {}) - **DEPRECATED:** Priority-to-delay mapping for completion delays (use `priorities` instead)
 - `priorities` (object, default: {}) - Priority-specific configuration: `{ [priority]: { concurrency, postDelay, startDelay } }`. Keys must be integers; any other key emits a `warning` event with `type: "invalid-priority"` (and is ignored when it isn't numeric at all)
   - `concurrency` (number) - Maximum concurrent tasks for this priority (defaults to global concurrency limit)
-  - `postDelay` (number) - Delay after task completion before next task of same priority
+  - `postDelay` (number) - Delay after a task of this priority completes before the next task can start (the delay applies queue-wide; see [Priority Delays](#priority-delays---advanced-timing-control))
   - `startDelay` (number) - Delay before task execution (pre-execution delay)
 - `coalescing` (object) - Enhanced coalescing configuration
   - `defaults` (object) - Default settings for all coalescing keys
     - `windowDuration` (number, default: 200) - Window duration in milliseconds
     - `maxDelay` (number, default: 1000) - Maximum delay before forcing execution
-    - `delay` (number) - Default completion delay for coalescing tasks
-    - `start` (number) - Default start delay for coalescing tasks
-    - `resolveAllPromises` (boolean, default: true) - Whether all promises resolve with result
+    - `postDelay` (number) - Default completion delay for coalescing tasks
+    - `startDelay` (number) - Default start delay for coalescing tasks
+    - `resolveAllPromises` (boolean, default: true) - Whether every task in a coalescing group resolves with the result; when `false`, only the newest task resolves and the others are rejected with `Task was coalesced with a newer task`
     - `multipleCallbacks` (boolean, default: false) - Whether to call multiple callbacks
-  - `keys` (object) - Per-key configuration overrides: `{ [key]: { windowDuration, maxDelay, delay, start, ... } }`
-- `coalescingWindowDuration` (number, default: 200) - **DEPRECATED:** Use `coalescing.defaults.windowDuration`
-- `coalescingMaxDelay` (number, default: 1000) - **DEPRECATED:** Use `coalescing.defaults.maxDelay`
-- `coalescingResolveAllPromises` (boolean, default: true) - **DEPRECATED:** Use `coalescing.defaults.resolveAllPromises`
-- `onError` (function) - Global error handler
+  - `keys` (object) - Per-key configuration overrides: `{ [key]: { windowDuration, maxDelay, postDelay, startDelay, ... } }`
+- `healingInterval` (number, default: 5000) - Self-healing check interval in milliseconds (smart scheduling only)
+- `sync` (boolean, default: true) - Set to `false` for [async initialization](#async-initialization-pattern); the constructor then returns a Promise that resolves to the instance
 - `now` (function) - Injectable clock for testing
+
+Deprecated option names are still accepted and converted for you, but each one emits a `warning` event; see [Deprecated Options](#deprecated-options) for the mapping.
 
 ### Methods
 
@@ -314,12 +351,12 @@ Adds a task to the queue.
 **Task Options:**
 
 - `priority` (number) - Task priority (higher = more important)
-- `postDelay` (number) - Override completion delay for this task (use -1 to bypass delays). `delay` is a deprecated alias that emits a `warning` event
+- `postDelay` (number) - Override completion delay for this task (use -1 to bypass delays). `delay` is a deprecated alias that emits a `warning` event once per queue
 - `bypassDelay` (boolean) - If true, skip any active delay period and start immediately
 - `timeout` (number) - Timeout in milliseconds
 - `signal` (AbortSignal) - External abort signal
 - `timestamp` (number) - Absolute execution timestamp
-- `startDelay` (number) - Milliseconds from now when the task should be ready to run (convenience for timestamp calculation). `start` is a deprecated alias that emits a `warning` event
+- `startDelay` (number) - Milliseconds from now when the task should be ready to run (convenience for timestamp calculation). `start` is a deprecated alias that emits a `warning` event once per queue
 - `coalescingKey` (string) - Tasks with the same coalescing key can be merged for efficiency
 - `mustRunBy` (number) - Absolute timestamp by which the task must execute (overrides coalescing delays)
 - `metadata` (any) - Custom metadata attached to the task. Individual metadata is always directly accessible via the returned task handle
@@ -439,10 +476,10 @@ queue.enqueue(task2, { id: "duplicate" }); // throws: Task ID "duplicate" alread
 
 - `configurePriority(priority, config)` - Configure or update priority-specific settings
   - `priority` (string|number) - Priority level to configure
-  - `config` (object) - Configuration: `{ delay?, maxDelay?, start? }`
+  - `config` (object) - Configuration: `{ postDelay?, startDelay? }`
 - `configureCoalescingKey(key, config)` - Configure or update coalescing key settings
   - `key` (string) - Coalescing key to configure
-  - `config` (object) - Configuration: `{ windowDuration?, maxDelay?, delay?, start?, multipleCallbacks?, resolveAllPromises? }`
+  - `config` (object) - Configuration: `{ windowDuration?, maxDelay?, postDelay?, startDelay?, multipleCallbacks?, resolveAllPromises? }`
 - `getPriorityConfig(priority, taskOptions?)` - Get effective configuration for a specific priority
 - `getPriorityConfigurations()` - Get all configured priorities and their settings
 - `getCoalescingConfig(coalescingKey, taskOptions?)` - Get effective configuration for a specific coalescing key
@@ -575,7 +612,7 @@ const queue = new HoldMyTask({ concurrency: 2 });
 
 // Add some tasks
 queue.enqueue(async () => "task1");
-queue.enqueue(async () => "task2", { priority: 2, start: 5000 });
+queue.enqueue(async () => "task2", { priority: 2, startDelay: 5000 });
 
 // Check initial state
 console.log("Initial state:");
@@ -617,27 +654,65 @@ queue.on("warning", (warning) => {
 });
 ```
 
-### Deprecation Warning Events
+When a callback-style task fails, times out, or is aborted, the task's callback receives the failure. The queue also emits an `error` event with the task (its `error` and `status` properties describe the failure), but only when an `error` listener is attached, so a listener is optional. Promise-style tasks report task failures only through the rejected promise.
 
-When deprecated configuration options are used, HoldMyTask emits `warning` events to help with migration:
+The callback's first argument is an error payload rather than the raw error: `{ type: "timeout", message }`, `{ type: "canceled", message: "Task was aborted" }`, or `{ type: "error", error }`.
+
+### Warning Events
+
+HoldMyTask reports configuration problems through `warning` events instead of throwing. The events are emitted asynchronously (on `setImmediate`), so a listener attached right after the constructor returns still receives them. There are two types.
+
+**Deprecations** (`type: "deprecation"`): when deprecated options are used, HoldMyTask converts them to the current names and emits one warning per deprecated option:
+
+- `type` - `"deprecation"`
+- `message` - a human-readable description
+- `deprecated` - the deprecated option or property name
+- `replacement` - the name to use instead
+
+**Invalid priority keys** (`type: "invalid-priority"`): `priorities` (and the deprecated `delays`) must be keyed by integers. A key that isn't one is reported instead of being dropped silently: a key that isn't numeric at all (`"high"`) is ignored, and a key with a fractional part (`"2.5"`) is applied to the truncated priority (`2`), as before:
+
+- `type` - `"invalid-priority"`
+- `message` - a human-readable description
+- `option` - the option the key came from (`"priorities"` or `"delays"`)
+- `key` - the key as written
+- `priority` - the priority it was applied to, or `null` when it was ignored
 
 ```javascript
 const queue = new HoldMyTask({
-	delays: { 1: 100 }, // Deprecated option
-	coalescingWindowDuration: 200 // Deprecated option
+	delays: { 1: 100 }, // Deprecated: use priorities
+	coalescingWindowDuration: 200 // Deprecated: use coalescing.defaults.windowDuration
 });
 
 queue.on("warning", (warning) => {
-	console.warn(`Deprecation Warning: ${warning.message}`);
-	console.warn(`Use: ${warning.replacement}`);
-	console.warn(`In: ${warning.source}`);
+	if (warning.type === "deprecation") {
+		console.warn(`${warning.message} (${warning.deprecated} -> ${warning.replacement})`);
+	}
 });
 
 // Output:
-// Deprecation Warning: Option 'delays' is deprecated
-// Use: priorities: { 1: { delay: 100 } }
-// In: constructor options
+// Option 'coalescingWindowDuration' is deprecated. Use 'coalescing.defaults.windowDuration' instead. (coalescingWindowDuration -> coalescing.defaults.windowDuration)
+// Option 'delays' is deprecated. Use 'priorities' instead with { [priority]: { postDelay: value, startDelay: 0 } } format. (delays -> priorities)
 ```
+
+### Deprecated Options
+
+These names still work, but each emits a deprecation warning. Use the current names in new code:
+
+| Deprecated                                                                                                                           | Use instead                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
+| `delays: { [priority]: ms }`                                                                                                         | `priorities: { [priority]: { postDelay: ms } }` |
+| `delay` in a `priorities` entry, `coalescing.defaults`, `coalescing.keys` entry, `configurePriority()` or `configureCoalescingKey()` | `postDelay`                                     |
+| `start` in the same places                                                                                                           | `startDelay`                                    |
+| `delay` as a task option passed to `enqueue()`                                                                                       | `postDelay`                                     |
+| `start` as a task option passed to `enqueue()`                                                                                       | `startDelay`                                    |
+| `coalescingWindowDuration` (constructor)                                                                                             | `coalescing.defaults.windowDuration`            |
+| `coalescingMaxDelay` (constructor)                                                                                                   | `coalescing.defaults.maxDelay`                  |
+| `coalescingMultipleCallbacks` (constructor)                                                                                          | `coalescing.defaults.multipleCallbacks`         |
+| `coalescingResolveAllPromises` (constructor)                                                                                         | `coalescing.defaults.resolveAllPromises`        |
+
+Each task-level alias (`delay`, `start`) warns once per queue instance, not once per task. If both a deprecated alias and its replacement are given, the replacement wins. The per-task `coalescingWindowDuration` / `coalescingMaxDelay` / `coalescingMultipleCallbacks` / `coalescingResolveAllPromises` overrides are not deprecated and remain the current names for task options.
+
+---
 
 ## ⚙️ Concurrency & Delays Interaction
 
@@ -648,7 +723,7 @@ Understanding how concurrency and delays work together is crucial for optimal qu
 ```javascript
 const queue = new HoldMyTask({
 	concurrency: 3, // Up to 3 tasks can run simultaneously
-	delays: { 1: 500, 2: 1000 }
+	priorities: { 1: { postDelay: 500 }, 2: { postDelay: 1000 } }
 });
 ```
 
@@ -661,7 +736,7 @@ const queue = new HoldMyTask({
 ### Timing Examples
 
 ```javascript
-// Timeline with concurrency: 2, delays: { 1: 1000 }
+// Timeline with concurrency: 2, priorities: { 1: { postDelay: 1000 } }
 
 // 10:00:00 - Start: TaskA (pri 1), TaskB (pri 1) - both running
 // 10:00:02 - TaskA completes → 1000ms delay starts, TaskB still running
@@ -709,10 +784,6 @@ HoldMyTask uses a sophisticated dual-heap scheduling system for optimal performa
 
 This architecture enables handling thousands of tasks with precise timing control while maintaining excellent performance.
 
-[![CodeFactor](https://img.shields.io/codefactor/grade/github/CLDMV/holdmytask?style=for-the-badge&logo=codefactor&logoColor=white&labelColor=F44A6A)](https://www.codefactor.io/repository/github/cldmv/holdmytask) [![npms.io score](https://img.shields.io/npms-io/final-score/%40cldmv%2Fholdmytask?style=for-the-badge&logo=npms&logoColor=white&labelColor=0B5D57)](https://npms.io/search?q=%40cldmv%2Fholdmytask)
-
-[![npm unpacked size](https://img.shields.io/npm/unpacked-size/%40cldmv%2Fholdmytask.svg?style=for-the-badge&logo=npm&logoColor=white&labelColor=CB3837)](https://www.npmjs.com/package/@cldmv/holdmytask) [![Repo size](https://img.shields.io/github/repo-size/CLDMV/holdmytask?style=for-the-badge&logo=github&logoColor=white&labelColor=181717)](https://github.com/CLDMV/holdmytask)
-
 ### Unlimited Queue Capacity
 
 For scenarios requiring unlimited task queuing, you can set `maxQueue` to `-1`:
@@ -739,6 +810,8 @@ for (let i = 0; i < 100000; i++) {
 **Memory Considerations:**
 
 While `-1` allows unlimited queuing, be mindful of memory usage with very large task sets. Each queued task consumes memory until executed.
+
+---
 
 ## 🎯 Advanced Features
 
@@ -769,50 +842,50 @@ HoldMyTask supports comprehensive priority and coalescing configuration for soph
 ```javascript
 const queue = new HoldMyTask({
 	concurrency: 3,
-	// Priority-specific defaults (replaces legacy delays)
+	// Priority-specific defaults
 	priorities: {
-		1: { delay: 200, start: 0 }, // High priority: 200ms delay, immediate start
-		2: { delay: 100, start: 25 }, // Medium priority: 100ms delay, 25ms start delay
-		3: { delay: 50, start: 50 } // Low priority: 50ms delay, 50ms start delay
+		1: { postDelay: 200, startDelay: 0 }, // High priority: 200ms delay, immediate start
+		2: { postDelay: 100, startDelay: 25 }, // Medium priority: 100ms delay, 25ms start delay
+		3: { postDelay: 50, startDelay: 50 } // Low priority: 50ms delay, 50ms start delay
 	},
 	// Enhanced coalescing with per-key settings
 	coalescing: {
 		defaults: {
 			windowDuration: 200,
 			maxDelay: 1000,
-			delay: 75, // Default completion delay for coalescing tasks
-			start: 25, // Default start delay for coalescing tasks
+			postDelay: 75, // Default completion delay for coalescing tasks
+			startDelay: 25, // Default start delay for coalescing tasks
 			resolveAllPromises: true
 		},
 		keys: {
 			"ui.update": {
 				windowDuration: 100,
 				maxDelay: 500,
-				delay: 25, // Fast UI updates
-				start: 0
+				postDelay: 25, // Fast UI updates
+				startDelay: 0
 			},
 			"api.batch": {
 				windowDuration: 1000,
 				maxDelay: 5000,
-				delay: 200, // Slower API operations
-				start: 100
+				postDelay: 200, // Slower API operations
+				startDelay: 100
 			}
 		}
 	}
 });
 
 // Dynamic configuration
-queue.configurePriority(4, { delay: 300, start: 75 });
+queue.configurePriority(4, { postDelay: 300, startDelay: 75 });
 queue.configureCoalescingKey("data.sync", {
 	windowDuration: 800,
 	maxDelay: 3000,
-	delay: 150,
-	start: 50
+	postDelay: 150,
+	startDelay: 50
 });
 
 // Get configuration information
 const priority4Config = queue.getPriorityConfig(4);
-console.log(`Priority 4: ${priority4Config.delay}ms delay, ${priority4Config.start}ms start delay`);
+console.log(`Priority 4: ${priority4Config.postDelay}ms delay, ${priority4Config.startDelay}ms start delay`);
 
 const dataSyncConfig = queue.getCoalescingConfig("data.sync");
 console.log(`Data sync: ${dataSyncConfig.windowDuration}ms window, ${dataSyncConfig.maxDelay}ms max delay`);
@@ -832,7 +905,7 @@ console.log("All coalescing configs:", allCoalescingKeys);
 4. Coalescing defaults
 5. System defaults (lowest priority)
 
-**Backward Compatibility:** Legacy `delays` options are automatically converted to the new `priorities` format.
+**Backward Compatibility:** Deprecated option names are converted automatically; see [Deprecated Options](#deprecated-options).
 
 ### Smart Scheduling
 
@@ -983,10 +1056,10 @@ Priority delays create "cool-down" periods after task completion based on the co
 ```javascript
 const queue = new HoldMyTask({
 	concurrency: 1,
-	delays: {
-		1: 1000, // 1 second delay after priority 1 tasks complete
-		2: 500, // 500ms delay after priority 2 tasks complete
-		3: 0 // No delay after priority 3 tasks (explicit)
+	priorities: {
+		1: { postDelay: 1000 }, // 1 second delay after priority 1 tasks complete
+		2: { postDelay: 500 }, // 500ms delay after priority 2 tasks complete
+		3: { postDelay: 0 } // No delay after priority 3 tasks (explicit)
 	}
 });
 
@@ -997,22 +1070,22 @@ const queue = new HoldMyTask({
 // → Next task can't start until 10:00:07.5 (500ms delay)
 
 // Override delay for specific task
-queue.enqueue(task, callback, { priority: 1, delay: 200 }); // Uses 200ms instead of 1000ms
+queue.enqueue(task, callback, { priority: 1, postDelay: 200 }); // Uses 200ms instead of 1000ms
 
 // Set zero delay for specific task
-queue.enqueue(task, callback, { priority: 1, delay: 0 }); // No delay after this task
+queue.enqueue(task, callback, { priority: 1, postDelay: 0 }); // No delay after this task
 ```
 
 ### Delay Bypass - Emergency Task Injection
 
-When urgent tasks need to execute immediately, bypassing active delay periods, use the `bypassDelay` option or `delay: -1` syntax. This is perfect for emergency situations, high-priority interrupts, or critical system tasks.
+When urgent tasks need to execute immediately, bypassing active delay periods, use the `bypassDelay` option or `postDelay: -1` syntax. This is perfect for emergency situations, high-priority interrupts, or critical system tasks.
 
 #### Bypass Behavior
 
 ```javascript
 const queue = new HoldMyTask({
 	concurrency: 1,
-	delays: { 1: 1000 } // 1 second delay after priority 1 tasks
+	priorities: { 1: { postDelay: 1000 } } // 1 second delay after priority 1 tasks
 });
 
 // Timeline example:
@@ -1030,7 +1103,7 @@ queue.enqueue(urgentTaskC, callback, {
 // Alternative bypass syntax
 queue.enqueue(emergencyTaskD, callback, {
 	priority: 1,
-	delay: -1 // Same as bypassDelay: true
+	postDelay: -1 // Same as bypassDelay: true
 });
 ```
 
@@ -1039,7 +1112,7 @@ queue.enqueue(emergencyTaskD, callback, {
 ```javascript
 const queue = new HoldMyTask({
 	concurrency: 2,
-	delays: { 1: 800, 2: 400 }
+	priorities: { 1: { postDelay: 800 }, 2: { postDelay: 400 } }
 });
 
 // Multiple tasks with different bypass behavior
@@ -1059,6 +1132,8 @@ queue.enqueue(taskD, callback, { priority: 1 }); // Waits for taskC's completion
 - ✅ **Concurrency aware** - works correctly with multiple concurrent execution slots
 - ⚠️ **Use sparingly** - frequent bypassing defeats the purpose of delay-based rate limiting
 
+---
+
 ## 🔄 Task Coalescing System
 
 The coalescing system allows multiple similar tasks to be intelligently merged, reducing redundant operations while ensuring all promises resolve with accurate results. This is perfect for scenarios like UI updates, API calls, or device commands where only the final result matters.
@@ -1072,7 +1147,7 @@ When tasks with the same `coalescingKey` are enqueued within a time window, they
 3. **One representative task** executes for the entire group
 4. **All promises** in the group resolve with the same result
 
-⚠️ **Critical Timing Consideration**: Real-world tasks take time to execute (100ms-2000ms+). If your coalescing tasks need to see the final state from other operations, ensure proper timing with `start` delays or `timestamp` scheduling. Tasks that start too early may see intermediate states rather than final results.
+⚠️ **Critical Timing Consideration**: Real-world tasks take time to execute (100ms-2000ms+). If your coalescing tasks need to see the final state from other operations, ensure proper timing with `startDelay` or `timestamp` scheduling. Tasks that start too early may see intermediate states rather than final results.
 
 ### 🎯 Correct Coalescing Pattern: Fire-and-Forget with Embedded Updates
 
@@ -1121,9 +1196,13 @@ function volumeUp() {
 ```javascript
 const queue = new HoldMyTask({
 	concurrency: 1,
-	coalescingWindowDuration: 200, // 200ms window for grouping tasks
-	coalescingMaxDelay: 1000, // Maximum 1000ms delay before forcing execution
-	coalescingResolveAllPromises: true // All promises get the result (default: true)
+	coalescing: {
+		defaults: {
+			windowDuration: 200, // 200ms window for grouping tasks
+			maxDelay: 1000, // Maximum 1000ms delay before forcing execution
+			resolveAllPromises: true // All promises get the result (default: true)
+		}
+	}
 });
 ```
 
@@ -1143,7 +1222,7 @@ async function updateVolume(change) {
 		{
 			coalescingKey: "volume.update", // Tasks with same key get grouped
 			priority: 1,
-			delay: 100 // 100ms delay after completion
+			postDelay: 100 // 100ms delay after completion
 		}
 	);
 }
@@ -1169,8 +1248,12 @@ The correct pattern for coalescing with updates is to enqueue update tasks **fro
 ```javascript
 const queue = new HoldMyTask({
 	concurrency: 2, // Allow volume and update tasks to run concurrently
-	coalescingWindowDuration: 200,
-	coalescingMaxDelay: 1000
+	coalescing: {
+		defaults: {
+			windowDuration: 200,
+			maxDelay: 1000
+		}
+	}
 });
 
 // Volume commands using fire-and-forget pattern
@@ -1197,7 +1280,7 @@ function volumeUp(amount = 1) {
 				{
 					coalescingKey: "volume.ui.update", // UI updates get coalesced
 					priority: 5, // Lower priority than volume commands
-					delay: 100 // Brief delay after UI updates
+					postDelay: 100 // Brief delay after UI updates
 				}
 			);
 
@@ -1205,7 +1288,7 @@ function volumeUp(amount = 1) {
 		},
 		{
 			priority: 1, // High priority for user actions
-			delay: 100 // Brief delay after volume operations
+			postDelay: 100 // Brief delay after volume operations
 		}
 	);
 }
@@ -1238,7 +1321,7 @@ async function processDataBatch(data) {
 		{
 			coalescingKey: "api.batch.process",
 			priority: 2,
-			start: 100 // 100ms delay allows grouping
+			startDelay: 100 // 100ms delay allows grouping
 		}
 	);
 }
@@ -1255,12 +1338,16 @@ async function processDataBatch(data) {
 
 ### Coalescing with Explicit Timestamps
 
-For precise scheduling, use `timestamp` instead of `start`:
+For precise scheduling, use `timestamp` instead of `startDelay`:
 
 ```javascript
 const queue = new HoldMyTask({
-	coalescingWindowDuration: 300,
-	coalescingMaxDelay: 2000
+	coalescing: {
+		defaults: {
+			windowDuration: 300,
+			maxDelay: 2000
+		}
+	}
 });
 
 // Schedule all updates for the same exact time
@@ -1294,8 +1381,12 @@ Control maximum delay with `mustRunBy` to ensure tasks don't wait too long:
 
 ```javascript
 const queue = new HoldMyTask({
-	coalescingWindowDuration: 500, // Try to group for 500ms
-	coalescingMaxDelay: 2000 // But never wait more than 2 seconds
+	coalescing: {
+		defaults: {
+			windowDuration: 500, // Try to group for 500ms
+			maxDelay: 2000 // But never wait more than 2 seconds
+		}
+	}
 });
 
 // Critical system updates
@@ -1324,8 +1415,12 @@ Control how promises resolve within coalescing groups:
 
 ```javascript
 const queue = new HoldMyTask({
-	coalescingResolveAllPromises: true, // Default: all promises get the result
-	coalescingWindowDuration: 200
+	coalescing: {
+		defaults: {
+			resolveAllPromises: true, // Default: all promises get the result
+			windowDuration: 200
+		}
+	}
 });
 
 // Mode 1: All promises resolve (default behavior)
@@ -1336,18 +1431,23 @@ const results1 = await Promise.all([
 ]);
 // All three promises resolve with the same result
 
-// Mode 2: Only representative promise resolves
+// Mode 2: Only the representative (newest) task's promise resolves
 const queue2 = new HoldMyTask({
-	coalescingResolveAllPromises: false,
-	coalescingWindowDuration: 200
+	coalescing: {
+		defaults: {
+			resolveAllPromises: false,
+			windowDuration: 200
+		}
+	}
 });
 
-const [result1, result2, result3] = await Promise.all([
-	queue2.enqueue(task, { coalescingKey: "test" }), // Resolves with result
-	queue2.enqueue(task, { coalescingKey: "test" }), // Resolves with undefined
-	queue2.enqueue(task, { coalescingKey: "test" }) // Resolves with undefined
+const settled = await Promise.allSettled([
+	queue2.enqueue(task, { coalescingKey: "test" }), // Rejects: "Task was coalesced with a newer task"
+	queue2.enqueue(task, { coalescingKey: "test" }), // Rejects: "Task was coalesced with a newer task"
+	queue2.enqueue(task, { coalescingKey: "test" }) // Resolves with the result
 ]);
-// Only the first (representative) promise gets the actual result
+// Only the newest task in the group gets the result; the others are rejected
+// (callback-style tasks receive the same error as their first argument)
 ```
 
 ### Real-World Coalescing Patterns
@@ -1359,8 +1459,12 @@ class VolumeController {
 	constructor() {
 		this.queue = new HoldMyTask({
 			concurrency: 2, // Allow volume and update tasks concurrently
-			coalescingWindowDuration: 200,
-			coalescingMaxDelay: 1000
+			coalescing: {
+				defaults: {
+					windowDuration: 200,
+					maxDelay: 1000
+				}
+			}
 		});
 	}
 
@@ -1383,7 +1487,7 @@ class VolumeController {
 					{
 						coalescingKey: "volume.ui.update", // Updates coalesce together
 						priority: 3, // Lower priority than volume changes
-						delay: 100 // Brief delay after UI updates
+						postDelay: 100 // Brief delay after UI updates
 					}
 				);
 
@@ -1391,7 +1495,7 @@ class VolumeController {
 			},
 			{
 				priority: 1, // High priority for user actions
-				delay: 50 // Brief delay between volume operations
+				postDelay: 50 // Brief delay between volume operations
 			}
 		);
 	}
@@ -1405,8 +1509,12 @@ class APIBatcher {
 	constructor() {
 		this.queue = new HoldMyTask({
 			concurrency: 2,
-			coalescingWindowDuration: 300,
-			coalescingMaxDelay: 1500
+			coalescing: {
+				defaults: {
+					windowDuration: 300,
+					maxDelay: 1500
+				}
+			}
 		});
 	}
 
@@ -1436,8 +1544,12 @@ Real-world performance improvements with the embedded update pattern:
 // Fire-and-forget pattern with embedded coalescing updates
 const queue = new HoldMyTask({
 	concurrency: 2,
-	coalescingWindowDuration: 200,
-	coalescingMaxDelay: 1000
+	coalescing: {
+		defaults: {
+			windowDuration: 200,
+			maxDelay: 1000
+		}
+	}
 });
 
 // Volume control example - realistic embedded pattern
@@ -1476,9 +1588,11 @@ function processVolumeCommands() {
 // - Total time: ~25-30 seconds (vs 50+ seconds without coalescing)
 ```
 
-### Timeouts
+---
 
-Tasks automatically timeout and either call the callback with an error or reject the promise:
+## ⏱️ Timeouts
+
+Tasks automatically time out and either call the callback with an error payload or reject the promise. Callback-style timeouts also emit an `error` event on the queue (see [Events](#events)):
 
 **Callback API:**
 
@@ -1517,6 +1631,8 @@ try {
 	}
 }
 ```
+
+---
 
 ## 🛑 AbortController Support
 
@@ -1679,6 +1795,8 @@ try {
 - **Cooperative**: Tasks must actively check and respond to the abort signal
 - **Async operations**: Only cancellable if the underlying operation supports AbortSignal
 
+---
+
 ## 📝 Examples
 
 ### Basic Usage
@@ -1712,10 +1830,10 @@ function processUser(userId) {
 ```javascript
 const queue = new HoldMyTask({
 	concurrency: 1,
-	delays: {
-		1: 1000, // 1 second between high-priority tasks
-		2: 100, // 100ms between medium-priority tasks
-		3: 0 // No delay for low-priority tasks
+	priorities: {
+		1: { postDelay: 1000 }, // 1 second between high-priority tasks
+		2: { postDelay: 100 }, // 100ms between medium-priority tasks
+		3: { postDelay: 0 } // No delay for low-priority tasks
 	}
 });
 
@@ -1732,7 +1850,7 @@ queue.enqueue(mediumTask2, callback, { priority: 2 });
 ```javascript
 const queue = new HoldMyTask({
 	concurrency: 5,
-	delays: { 1: 50 } // Small delay between batches
+	priorities: { 1: { postDelay: 50 } } // Small delay between batches
 });
 
 async function processBatch(items) {
@@ -1767,10 +1885,10 @@ Real-world scenario: API rate limiting with emergency override capability.
 ```javascript
 const apiQueue = new HoldMyTask({
 	concurrency: 2,
-	delays: {
-		1: 2000, // 2 second delay between API calls (rate limiting)
-		2: 5000, // 5 second delay for heavy operations
-		9: 0 // No delay for monitoring tasks
+	priorities: {
+		1: { postDelay: 2000 }, // 2 second delay between API calls (rate limiting)
+		2: { postDelay: 5000 }, // 5 second delay for heavy operations
+		9: { postDelay: 0 } // No delay for monitoring tasks
 	}
 });
 
@@ -1793,7 +1911,7 @@ apiQueue.enqueue(processSecurityAlert, handleEmergency, {
 // Alternative syntax for bypass
 apiQueue.enqueue(emergencyShutdown, handleEmergency, {
 	priority: 1,
-	delay: -1, // Same as bypassDelay: true
+	postDelay: -1, // Same as bypassDelay: true
 	metadata: { action: "shutdown" }
 });
 
@@ -1813,23 +1931,26 @@ setInterval(() => {
 }, 1000);
 ```
 
+---
+
 ## 🧪 Testing & Development
 
 ```bash
-# Run tests
+# Run tests (vitest suite + CommonJS entry tests)
 npm test
 
 # Run tests with coverage
-npm run test:coverage
+npm run coverage
 
 # Run tests in watch mode
-npm run test:run
+npm run test:watch
 
-# Lint code
+# Lint and format check
 npm run lint
+npm run format:check
 
-# Build for publishing
-npm run build
+# Build types, type-check, and build for publishing
+npm run build:ci
 ```
 
 ### Testing with Injectable Clock
@@ -1853,21 +1974,74 @@ console.log(Date.now()); // Returns actual system time
 queue.enqueue(task, { timestamp: queue.now() + 5000 }); // 5 seconds from mock time
 ```
 
-## 📄 License
+---
 
-[![GitHub license](https://img.shields.io/github/license/CLDMV/holdmytask.svg?style=for-the-badge&logo=github&logoColor=white&labelColor=181717)](https://github.com/CLDMV/holdmytask/blob/HEAD/LICENSE) [![npm license](https://img.shields.io/npm/l/%40cldmv%2Fholdmytask.svg?style=for-the-badge&logo=npm&logoColor=white&labelColor=CB3837)](https://www.npmjs.com/package/@cldmv/holdmytask)
+## 📚 Documentation
 
-Apache License 2.0 - see [LICENSE](LICENSE) file for details.
+- **[Changelog](https://github.com/CLDMV/holdmytask/tree/master/docs/changelog/)** — release notes for every version (v1 + v2)
+- **[Examples](https://github.com/CLDMV/holdmytask/tree/master/examples/)** — runnable scripts exercising priorities, coalescing, and stress scenarios
+- **[Type definitions](https://github.com/CLDMV/holdmytask/tree/master/types/)** — the TypeScript declarations shipped with the package
+
+[![CodeFactor]][codefactor_url] [![OpenSSF Scorecard]][ossf_scorecard_url] [![npms.io score]][npms_url] [![npm unpacked size]][npm_size_url] [![Repo size]][repo_size_url]
+
+---
 
 ## 🤝 Contributing
 
-Contributions welcome! Please ensure:
+Contributions are welcome! Please ensure:
 
 - All tests pass
 - Code follows existing style
 - New features include tests
 - Documentation is updated
 
+[![Contributors]][contributors_url] [![Sponsor shinrai]][sponsor_url]
+
 ---
 
-**Made with ❤️ for robust task management**
+## 🔗 Links
+
+- **npm**: [@cldmv/holdmytask](https://www.npmjs.com/package/@cldmv/holdmytask)
+- **GitHub**: [CLDMV/holdmytask](https://github.com/CLDMV/holdmytask)
+- **Issues**: [GitHub Issues](https://github.com/CLDMV/holdmytask/issues)
+- **Changelog**: [docs/changelog/](https://github.com/CLDMV/holdmytask/tree/master/docs/changelog/)
+- **Releases**: [GitHub Releases](https://github.com/CLDMV/holdmytask/releases)
+
+---
+
+## 📄 License
+
+[![GitHub license]][github_license_url] [![npm license]][npm_license_url]
+
+Apache-2.0 © Shinrai / CLDMV — see [LICENSE](https://github.com/CLDMV/holdmytask/blob/HEAD/LICENSE) for details.
+
+[npm version]: https://img.shields.io/npm/v/%40cldmv%2Fholdmytask.svg?style=for-the-badge&logo=npm&logoColor=white&labelColor=CB3837
+[npm_version_url]: https://www.npmjs.com/package/@cldmv/holdmytask
+[last commit]: https://img.shields.io/github/last-commit/CLDMV/holdmytask?style=for-the-badge&logo=github&logoColor=white&labelColor=181717
+[last_commit_url]: https://github.com/CLDMV/holdmytask/commits
+[npm last update]: https://img.shields.io/npm/last-update/%40cldmv%2Fholdmytask?style=for-the-badge&logo=npm&logoColor=white&labelColor=CB3837
+[npm_last_update_url]: https://www.npmjs.com/package/@cldmv/holdmytask
+[codefactor]: https://img.shields.io/codefactor/grade/github/CLDMV/holdmytask?style=for-the-badge&logo=codefactor&logoColor=white&labelColor=F44A6A
+[codefactor_url]: https://www.codefactor.io/repository/github/cldmv/holdmytask
+[openssf scorecard]: https://img.shields.io/ossf-scorecard/github.com/CLDMV/holdmytask?style=for-the-badge&label=OpenSSF%20Scorecard
+[ossf_scorecard_url]: https://scorecard.dev/viewer/?uri=github.com/CLDMV/holdmytask
+[npms.io score]: https://img.shields.io/npms-io/final-score/%40cldmv%2Fholdmytask?style=for-the-badge&logo=npms&logoColor=white&labelColor=0B5D57
+[npms_url]: https://npms.io/search?q=%40cldmv%2Fholdmytask
+[npm downloads]: https://img.shields.io/npm/dm/%40cldmv%2Fholdmytask.svg?style=for-the-badge&logo=npm&logoColor=white&labelColor=CB3837
+[npm_downloads_url]: https://www.npmjs.com/package/@cldmv/holdmytask
+[github downloads]: https://img.shields.io/github/downloads/CLDMV/holdmytask/total?style=for-the-badge&logo=github&logoColor=white&labelColor=181717
+[github_downloads_url]: https://github.com/CLDMV/holdmytask/releases
+[npm unpacked size]: https://img.shields.io/npm/unpacked-size/%40cldmv%2Fholdmytask.svg?style=for-the-badge&logo=npm&logoColor=white&labelColor=CB3837
+[npm_size_url]: https://www.npmjs.com/package/@cldmv/holdmytask
+[repo size]: https://img.shields.io/github/repo-size/CLDMV/holdmytask?style=for-the-badge&logo=github&logoColor=white&labelColor=181717
+[repo_size_url]: https://github.com/CLDMV/holdmytask
+[github license]: https://img.shields.io/github/license/CLDMV/holdmytask.svg?style=for-the-badge&logo=github&logoColor=white&labelColor=181717
+[github_license_url]: https://github.com/CLDMV/holdmytask/blob/HEAD/LICENSE
+[npm license]: https://img.shields.io/npm/l/%40cldmv%2Fholdmytask.svg?style=for-the-badge&logo=npm&logoColor=white&labelColor=CB3837
+[npm_license_url]: https://www.npmjs.com/package/@cldmv/holdmytask
+[coverage]: https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FCLDMV%2Fholdmytask%2Fbadges%2Fcoverage.json&style=for-the-badge&logo=vitest&logoColor=white
+[coverage_url]: https://github.com/CLDMV/holdmytask/blob/badges/coverage.json
+[contributors]: https://img.shields.io/github/contributors/CLDMV/holdmytask.svg?style=for-the-badge&logo=github&logoColor=white&labelColor=181717
+[contributors_url]: https://github.com/CLDMV/holdmytask/graphs/contributors
+[sponsor shinrai]: https://img.shields.io/github/sponsors/shinrai?style=for-the-badge&logo=githubsponsors&logoColor=white&labelColor=EA4AAA&label=Sponsor
+[sponsor_url]: https://github.com/sponsors/shinrai
