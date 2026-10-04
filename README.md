@@ -314,12 +314,12 @@ Adds a task to the queue.
 **Task Options:**
 
 - `priority` (number) - Task priority (higher = more important)
-- `delay` (number) - Override completion delay for this task (use -1 to bypass delays)
+- `postDelay` (number) - Override completion delay for this task (use -1 to bypass delays). `delay` is a deprecated alias that emits a `warning` event
 - `bypassDelay` (boolean) - If true, skip any active delay period and start immediately
 - `timeout` (number) - Timeout in milliseconds
 - `signal` (AbortSignal) - External abort signal
 - `timestamp` (number) - Absolute execution timestamp
-- `start` (number) - Milliseconds from now when the task should be ready to run (convenience for timestamp calculation)
+- `startDelay` (number) - Milliseconds from now when the task should be ready to run (convenience for timestamp calculation). `start` is a deprecated alias that emits a `warning` event
 - `coalescingKey` (string) - Tasks with the same coalescing key can be merged for efficiency
 - `mustRunBy` (number) - Absolute timestamp by which the task must execute (overrides coalescing delays)
 - `metadata` (any) - Custom metadata attached to the task. Individual metadata is always directly accessible via the returned task handle
