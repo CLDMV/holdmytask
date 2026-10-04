@@ -84,9 +84,6 @@ const queue = new HoldMyTask({
 	}
 });
 
-// Callback-style tasks also report failures as queue "error" events, so listen for them
-queue.on("error", (task) => console.error(`Task ${task.id} ${task.status}:`, task.error));
-
 // Enqueue a task
 queue.enqueue(
 	async (signal) => {
@@ -354,12 +351,12 @@ Adds a task to the queue.
 **Task Options:**
 
 - `priority` (number) - Task priority (higher = more important)
-- `postDelay` (number) - Override completion delay for this task (use -1 to bypass delays). `delay` is a deprecated alias that emits a `warning` event
+- `postDelay` (number) - Override completion delay for this task (use -1 to bypass delays). `delay` is a deprecated alias that emits a `warning` event once per queue
 - `bypassDelay` (boolean) - If true, skip any active delay period and start immediately
 - `timeout` (number) - Timeout in milliseconds
 - `signal` (AbortSignal) - External abort signal
 - `timestamp` (number) - Absolute execution timestamp
-- `startDelay` (number) - Milliseconds from now when the task should be ready to run (convenience for timestamp calculation). `start` is a deprecated alias that emits a `warning` event
+- `startDelay` (number) - Milliseconds from now when the task should be ready to run (convenience for timestamp calculation). `start` is a deprecated alias that emits a `warning` event once per queue
 - `coalescingKey` (string) - Tasks with the same coalescing key can be merged for efficiency
 - `mustRunBy` (number) - Absolute timestamp by which the task must execute (overrides coalescing delays)
 - `metadata` (any) - Custom metadata attached to the task. Individual metadata is always directly accessible via the returned task handle
@@ -615,7 +612,7 @@ const queue = new HoldMyTask({ concurrency: 2 });
 
 // Add some tasks
 queue.enqueue(async () => "task1");
-queue.enqueue(async () => "task2", { priority: 2, start: 5000 });
+queue.enqueue(async () => "task2", { priority: 2, startDelay: 5000 });
 
 // Check initial state
 console.log("Initial state:");
@@ -657,8 +654,7 @@ queue.on("warning", (warning) => {
 });
 ```
 
-> [!IMPORTANT]
-> When a callback-style task fails, times out, or is aborted, the queue emits an `error` event with the task (its `error` and `status` properties describe the failure) before calling the task's callback. HoldMyTask is an `EventEmitter`, so if no `error` listener is attached, Node.js throws the event as an unhandled error. Attach a `queue.on("error", ...)` listener whenever you use the callback API. Promise-style tasks report task failures only through the rejected promise.
+When a callback-style task fails, times out, or is aborted, the task's callback receives the failure. The queue also emits an `error` event with the task (its `error` and `status` properties describe the failure), but only when an `error` listener is attached, so a listener is optional. Promise-style tasks report task failures only through the rejected promise.
 
 The callback's first argument is an error payload rather than the raw error: `{ type: "timeout", message }`, `{ type: "canceled", message: "Task was aborted" }`, or `{ type: "error", error }`.
 
@@ -699,12 +695,14 @@ These names still work, but each emits a deprecation warning. Use the current na
 | `delays: { [priority]: ms }`                                                                                                         | `priorities: { [priority]: { postDelay: ms } }` |
 | `delay` in a `priorities` entry, `coalescing.defaults`, `coalescing.keys` entry, `configurePriority()` or `configureCoalescingKey()` | `postDelay`                                     |
 | `start` in the same places                                                                                                           | `startDelay`                                    |
+| `delay` as a task option passed to `enqueue()`                                                                                       | `postDelay`                                     |
+| `start` as a task option passed to `enqueue()`                                                                                       | `startDelay`                                    |
 | `coalescingWindowDuration` (constructor)                                                                                             | `coalescing.defaults.windowDuration`            |
 | `coalescingMaxDelay` (constructor)                                                                                                   | `coalescing.defaults.maxDelay`                  |
 | `coalescingMultipleCallbacks` (constructor)                                                                                          | `coalescing.defaults.multipleCallbacks`         |
 | `coalescingResolveAllPromises` (constructor)                                                                                         | `coalescing.defaults.resolveAllPromises`        |
 
-Task-level options passed to `enqueue()` are not deprecated: `delay`, `start`, and the per-task `coalescingWindowDuration` / `coalescingMaxDelay` / `coalescingMultipleCallbacks` / `coalescingResolveAllPromises` overrides are the current names there.
+Each task-level alias (`delay`, `start`) warns once per queue instance, not once per task. If both a deprecated alias and its replacement are given, the replacement wins. The per-task `coalescingWindowDuration` / `coalescingMaxDelay` / `coalescingMultipleCallbacks` / `coalescingResolveAllPromises` overrides are not deprecated and remain the current names for task options.
 
 ---
 
@@ -1064,15 +1062,15 @@ const queue = new HoldMyTask({
 // → Next task can't start until 10:00:07.5 (500ms delay)
 
 // Override delay for specific task
-queue.enqueue(task, callback, { priority: 1, delay: 200 }); // Uses 200ms instead of 1000ms
+queue.enqueue(task, callback, { priority: 1, postDelay: 200 }); // Uses 200ms instead of 1000ms
 
 // Set zero delay for specific task
-queue.enqueue(task, callback, { priority: 1, delay: 0 }); // No delay after this task
+queue.enqueue(task, callback, { priority: 1, postDelay: 0 }); // No delay after this task
 ```
 
 ### Delay Bypass - Emergency Task Injection
 
-When urgent tasks need to execute immediately, bypassing active delay periods, use the `bypassDelay` option or `delay: -1` syntax. This is perfect for emergency situations, high-priority interrupts, or critical system tasks.
+When urgent tasks need to execute immediately, bypassing active delay periods, use the `bypassDelay` option or `postDelay: -1` syntax. This is perfect for emergency situations, high-priority interrupts, or critical system tasks.
 
 #### Bypass Behavior
 
@@ -1097,7 +1095,7 @@ queue.enqueue(urgentTaskC, callback, {
 // Alternative bypass syntax
 queue.enqueue(emergencyTaskD, callback, {
 	priority: 1,
-	delay: -1 // Same as bypassDelay: true
+	postDelay: -1 // Same as bypassDelay: true
 });
 ```
 
@@ -1141,7 +1139,7 @@ When tasks with the same `coalescingKey` are enqueued within a time window, they
 3. **One representative task** executes for the entire group
 4. **All promises** in the group resolve with the same result
 
-⚠️ **Critical Timing Consideration**: Real-world tasks take time to execute (100ms-2000ms+). If your coalescing tasks need to see the final state from other operations, ensure proper timing with `start` delays or `timestamp` scheduling. Tasks that start too early may see intermediate states rather than final results.
+⚠️ **Critical Timing Consideration**: Real-world tasks take time to execute (100ms-2000ms+). If your coalescing tasks need to see the final state from other operations, ensure proper timing with `startDelay` or `timestamp` scheduling. Tasks that start too early may see intermediate states rather than final results.
 
 ### 🎯 Correct Coalescing Pattern: Fire-and-Forget with Embedded Updates
 
@@ -1216,7 +1214,7 @@ async function updateVolume(change) {
 		{
 			coalescingKey: "volume.update", // Tasks with same key get grouped
 			priority: 1,
-			delay: 100 // 100ms delay after completion
+			postDelay: 100 // 100ms delay after completion
 		}
 	);
 }
@@ -1274,7 +1272,7 @@ function volumeUp(amount = 1) {
 				{
 					coalescingKey: "volume.ui.update", // UI updates get coalesced
 					priority: 5, // Lower priority than volume commands
-					delay: 100 // Brief delay after UI updates
+					postDelay: 100 // Brief delay after UI updates
 				}
 			);
 
@@ -1282,7 +1280,7 @@ function volumeUp(amount = 1) {
 		},
 		{
 			priority: 1, // High priority for user actions
-			delay: 100 // Brief delay after volume operations
+			postDelay: 100 // Brief delay after volume operations
 		}
 	);
 }
@@ -1315,7 +1313,7 @@ async function processDataBatch(data) {
 		{
 			coalescingKey: "api.batch.process",
 			priority: 2,
-			start: 100 // 100ms delay allows grouping
+			startDelay: 100 // 100ms delay allows grouping
 		}
 	);
 }
@@ -1332,7 +1330,7 @@ async function processDataBatch(data) {
 
 ### Coalescing with Explicit Timestamps
 
-For precise scheduling, use `timestamp` instead of `start`:
+For precise scheduling, use `timestamp` instead of `startDelay`:
 
 ```javascript
 const queue = new HoldMyTask({
@@ -1481,7 +1479,7 @@ class VolumeController {
 					{
 						coalescingKey: "volume.ui.update", // Updates coalesce together
 						priority: 3, // Lower priority than volume changes
-						delay: 100 // Brief delay after UI updates
+						postDelay: 100 // Brief delay after UI updates
 					}
 				);
 
@@ -1489,7 +1487,7 @@ class VolumeController {
 			},
 			{
 				priority: 1, // High priority for user actions
-				delay: 50 // Brief delay between volume operations
+				postDelay: 50 // Brief delay between volume operations
 			}
 		);
 	}
@@ -1905,7 +1903,7 @@ apiQueue.enqueue(processSecurityAlert, handleEmergency, {
 // Alternative syntax for bypass
 apiQueue.enqueue(emergencyShutdown, handleEmergency, {
 	priority: 1,
-	delay: -1, // Same as bypassDelay: true
+	postDelay: -1, // Same as bypassDelay: true
 	metadata: { action: "shutdown" }
 });
 
