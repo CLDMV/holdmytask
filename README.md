@@ -280,7 +280,7 @@ This pattern is particularly useful when you need to handle initialization error
 - `defaultPriority` (number, default: 0) - Default task priority
 - `maxQueue` (number, default: Infinity) - Maximum queued tasks. Use `-1` for unlimited queue capacity (equivalent to `Infinity`)
 - `delays` (object, default: {}) - **DEPRECATED:** Priority-to-delay mapping for completion delays (use `priorities` instead)
-- `priorities` (object, default: {}) - Priority-specific configuration: `{ [priority]: { concurrency, postDelay, startDelay } }`
+- `priorities` (object, default: {}) - Priority-specific configuration: `{ [priority]: { concurrency, postDelay, startDelay } }`. Keys must be integers; any other key emits a `warning` event with `type: "invalid-priority"` (and is ignored when it isn't numeric at all)
   - `concurrency` (number) - Maximum concurrent tasks for this priority (defaults to global concurrency limit)
   - `postDelay` (number) - Delay after task completion before next task of same priority
   - `startDelay` (number) - Delay before task execution (pre-execution delay)

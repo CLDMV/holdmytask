@@ -35,7 +35,7 @@ export class HoldMyTask extends EventEmitter {
 	 * @param {boolean} [options.smartScheduling=true] - Use dynamic timeouts instead of constant polling for better performance
 	 * @param {number} [options.tick=25] - Polling interval in milliseconds when smartScheduling is disabled
 	 * @param {number} [options.healingInterval=5000] - Self-healing check interval in milliseconds (smart scheduling only)
-	 * @param {Object} [options.priorities={}] - Priority-specific default configurations
+	 * @param {Object} [options.priorities={}] - Priority-specific default configurations, keyed by integer priority. A non-integer key emits an "invalid-priority" warning event
 	 * @param {number} [options.priorities[priority].concurrency] - Maximum concurrent tasks for this priority (defaults to global concurrency limit)
 	 * @param {number} [options.priorities[priority].postDelay] - Delay after task completion before next task of same priority
 	 * @param {number} [options.priorities[priority].startDelay] - Delay before task execution (pre-execution delay)
@@ -211,6 +211,41 @@ export class HoldMyTask extends EventEmitter {
 	}
 
 	/**
+	 * Resolves a `priorities` / `delays` object key to a numeric priority.
+	 * Integer keys ("0", "10", "-1") resolve silently. Any other key emits a `warning` event of
+	 * type "invalid-priority" so a typo can't silently disable a priority config: a key
+	 * parseInt can't read (e.g. "high") is ignored, and a key it truncates (e.g. "2.5") keeps
+	 * its historical meaning - the truncated priority - but is reported.
+	 * @param {string} key - The object key as written in the config
+	 * @param {string} option - The option the key came from ("priorities" or "delays")
+	 * @returns {number|null} The numeric priority, or null when the key is ignored
+	 * @private
+	 * @internal
+	 */
+	_resolvePriorityKey(key, option) {
+		if (/^-?\d+$/.test(key)) {
+			return Number(key);
+		}
+
+		const parsed = parseInt(key);
+		const priority = isNaN(parsed) ? null : parsed;
+		const message =
+			priority === null
+				? `Priority key '${key}' in '${option}' is not an integer and was ignored. Priority keys must be integers.`
+				: `Priority key '${key}' in '${option}' is not an integer; it was applied to priority ${priority}. Priority keys must be integers.`;
+		setImmediate(() =>
+			this.emit("warning", {
+				type: "invalid-priority",
+				message,
+				option,
+				key,
+				priority
+			})
+		);
+		return priority;
+	}
+
+	/**
 	 * Synchronous initialization for backwards compatibility
 	 * @private
 	 * @param {Object} options - Configuration options
@@ -304,8 +339,9 @@ export class HoldMyTask extends EventEmitter {
 		// First, transform any existing priority configurations to use new property names
 		if (cleanOptions.priorities && typeof cleanOptions.priorities === "object") {
 			for (const [priority, config] of Object.entries(cleanOptions.priorities)) {
-				const priorityNum = parseInt(priority);
-				if (!isNaN(priorityNum) && config != null) {
+				if (config == null) continue;
+				const priorityNum = this._resolvePriorityKey(priority, "priorities");
+				if (priorityNum !== null) {
 					transformedPriorities[priorityNum] = HoldMyTask._transformDelayProperties(config, this);
 				}
 			}
@@ -325,8 +361,9 @@ export class HoldMyTask extends EventEmitter {
 			);
 
 			for (const [priority, delay] of Object.entries(cleanOptions.delays)) {
-				const priorityNum = parseInt(priority);
-				if (!isNaN(priorityNum) && delay != null) {
+				if (delay == null) continue;
+				const priorityNum = this._resolvePriorityKey(priority, "delays");
+				if (priorityNum !== null) {
 					transformedPriorities[priorityNum] = {
 						postDelay: delay, // Use new property name
 						startDelay: 0, // Use new property name
