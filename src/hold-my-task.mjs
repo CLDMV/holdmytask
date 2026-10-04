@@ -1899,17 +1899,34 @@ export class HoldMyTask extends EventEmitter {
 		error.taskId = item.id;
 
 		if (item.callback) {
-			// Callback API - emit error event
+			// Callback API - deliver the failure to the callback
 			try {
 				item.callback(error, null);
 			} catch (err) {
 				this.emit("error", { error: err, task: item });
 			}
-			// Emit error event for callback API
-			this.emit("error", { error, task: item });
+			// Also report it as a queue "error" event, but only to listeners: the callback already
+			// has the failure, so an unhandled-"error" throw would only crash the caller's process.
+			this._emitTaskError({ error, task: item });
 		} else if (item.reject) {
 			// Promise API - just reject, don't emit error event (handled by promise)
 			item.reject(error);
+		}
+	}
+
+	/**
+	 * Emits a task failure as an `error` event when, and only when, a listener is attached.
+	 * Used for callback-API task failures, which are always delivered to the task's callback
+	 * as well; with no listener, EventEmitter would otherwise throw the event and crash the
+	 * process before (or after) the callback could handle it.
+	 * @param {Object} payload - Event payload
+	 * @returns {void}
+	 * @private
+	 * @internal
+	 */
+	_emitTaskError(payload) {
+		if (this.listenerCount("error") > 0) {
+			this.emit("error", payload);
 		}
 	}
 
@@ -1998,9 +2015,10 @@ export class HoldMyTask extends EventEmitter {
 					: "error";
 			item.finishedAt = this.now();
 
-			// Emit error event only for callback API (promise API conveys error via rejection)
+			// Emit error event only for callback API (promise API conveys error via rejection),
+			// and only to listeners - the callback below always receives the failure.
 			if (item.callback) {
-				this.emit("error", item);
+				this._emitTaskError(item);
 			}
 
 			// Store final values on promise handle before rejecting (for promise API)
