@@ -307,7 +307,7 @@ queue.on("error", (err) => console.error("Queue error:", err));
 queue.on("warning", (warning) => console.warn("Warning:", warning.message));
 ```
 
-Initialization warnings (such as [deprecation warnings](#deprecation-warning-events)) are emitted on `setImmediate` in both modes, so a listener attached right after a synchronous `new HoldMyTask(...)` receives them as well.
+Initialization warnings (such as [deprecation warnings](#warning-events)) are emitted on `setImmediate` in both modes, so a listener attached right after a synchronous `new HoldMyTask(...)` receives them as well.
 
 **Options:**
 
@@ -658,16 +658,24 @@ When a callback-style task fails, times out, or is aborted, the task's callback 
 
 The callback's first argument is an error payload rather than the raw error: `{ type: "timeout", message }`, `{ type: "canceled", message: "Task was aborted" }`, or `{ type: "error", error }`.
 
-### Deprecation Warning Events
+### Warning Events
 
-When deprecated configuration options are used, HoldMyTask converts them to the current names and emits one `warning` event per deprecated option. The events are emitted asynchronously (on `setImmediate`), so a listener attached right after the constructor returns still receives them.
+HoldMyTask reports configuration problems through `warning` events instead of throwing. The events are emitted asynchronously (on `setImmediate`), so a listener attached right after the constructor returns still receives them. There are two types.
 
-Each warning has this shape:
+**Deprecations** (`type: "deprecation"`): when deprecated options are used, HoldMyTask converts them to the current names and emits one warning per deprecated option:
 
-- `type` - always `"deprecation"`
+- `type` - `"deprecation"`
 - `message` - a human-readable description
 - `deprecated` - the deprecated option or property name
 - `replacement` - the name to use instead
+
+**Invalid priority keys** (`type: "invalid-priority"`): `priorities` (and the deprecated `delays`) must be keyed by integers. A key that isn't one is reported instead of being dropped silently: a key that isn't numeric at all (`"high"`) is ignored, and a key with a fractional part (`"2.5"`) is applied to the truncated priority (`2`), as before:
+
+- `type` - `"invalid-priority"`
+- `message` - a human-readable description
+- `option` - the option the key came from (`"priorities"` or `"delays"`)
+- `key` - the key as written
+- `priority` - the priority it was applied to, or `null` when it was ignored
 
 ```javascript
 const queue = new HoldMyTask({
