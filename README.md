@@ -20,6 +20,7 @@ Use it with callbacks or promises, from ESM or CommonJS, with full TypeScript de
 
 - **Task-level `postDelay` / `startDelay` work as documented** — `enqueue()` now honors the documented `postDelay` and `startDelay` task options, and a task-level completion delay is enforced even when the task's priority has no `postDelay` of its own. The old `delay` / `start` names still work as deprecated aliases and emit one `deprecation` warning per queue instance.
 - **Safer failure reporting** — A failing callback-style task no longer crashes the process when no `error` listener is attached; the failure always reaches the callback, and the `error` event is emitted only when someone listens. Non-integer `priorities` keys now produce an `invalid-priority` warning instead of being dropped silently. The README was rewritten to the CLDMV layout with every example on the current API.
+- **Header tooling on fix-headers 2.2.0** — the `@cldmv/fix-headers` and `@cldmv/configs` dev dependencies move to 2.2.0 and 1.2.4, so `@Last modified by` now follows content edits only; no file was restamped, and the published package is unaffected (#61, #62).
 - [View full v2.0.5 Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.5.md)
 
 ### Recent Releases
