@@ -35,7 +35,7 @@ export class HoldMyTask extends EventEmitter {
 	 * @param {boolean} [options.smartScheduling=true] - Use dynamic timeouts instead of constant polling for better performance
 	 * @param {number} [options.tick=25] - Polling interval in milliseconds when smartScheduling is disabled
 	 * @param {number} [options.healingInterval=5000] - Self-healing check interval in milliseconds (smart scheduling only)
-	 * @param {Object} [options.priorities={}] - Priority-specific default configurations
+	 * @param {Object} [options.priorities={}] - Priority-specific default configurations, keyed by integer priority. A non-integer key emits an "invalid-priority" warning event
 	 * @param {number} [options.priorities[priority].concurrency] - Maximum concurrent tasks for this priority (defaults to global concurrency limit)
 	 * @param {number} [options.priorities[priority].postDelay] - Delay after task completion before next task of same priority
 	 * @param {number} [options.priorities[priority].startDelay] - Delay before task execution (pre-execution delay)
@@ -140,6 +140,61 @@ export class HoldMyTask extends EventEmitter {
 		return transformed;
 	}
 
+	/**
+	 * Normalizes task-level delay option names passed to enqueue().
+	 * `postDelay` / `startDelay` are the current names; `delay` / `start` are deprecated aliases.
+	 * When both forms are given, the current name wins. Each deprecated alias emits one
+	 * deprecation `warning` event per queue instance (not one per task), so a hot enqueue
+	 * path doesn't flood listeners.
+	 * @param {Object} options - Task options (never mutated)
+	 * @returns {Object} A copy of the options using the current names
+	 * @private
+	 * @internal
+	 */
+	_normalizeTaskDelayOptions(options) {
+		if (!("delay" in options) && !("start" in options)) {
+			return options;
+		}
+
+		const normalized = { ...options };
+		const aliases = [
+			{ deprecated: "start", replacement: "startDelay" },
+			{ deprecated: "delay", replacement: "postDelay" }
+		];
+
+		for (const { deprecated, replacement } of aliases) {
+			if (!(deprecated in options)) continue;
+			if (!(replacement in options)) {
+				normalized[replacement] = options[deprecated];
+				this._warnTaskOptionDeprecated(deprecated, replacement);
+			}
+			delete normalized[deprecated];
+		}
+
+		return normalized;
+	}
+
+	/**
+	 * Emits a deprecation warning for a task-level option, once per option name per instance.
+	 * @param {string} deprecated - Deprecated option name
+	 * @param {string} replacement - Current option name
+	 * @returns {void}
+	 * @private
+	 * @internal
+	 */
+	_warnTaskOptionDeprecated(deprecated, replacement) {
+		if (this._warnedTaskOptions.has(deprecated)) return;
+		this._warnedTaskOptions.add(deprecated);
+		setImmediate(() =>
+			this.emit("warning", {
+				type: "deprecation",
+				message: `Task option '${deprecated}' is deprecated. Use '${replacement}' instead.`,
+				deprecated,
+				replacement
+			})
+		);
+	}
+
 	constructor(options = {}) {
 		super();
 
@@ -153,6 +208,41 @@ export class HoldMyTask extends EventEmitter {
 			// Asynchronous initialization - modern usage
 			return this._initializeAsync(options);
 		}
+	}
+
+	/**
+	 * Resolves a `priorities` / `delays` object key to a numeric priority.
+	 * Integer keys ("0", "10", "-1") resolve silently. Any other key emits a `warning` event of
+	 * type "invalid-priority" so a typo can't silently disable a priority config: a key
+	 * parseInt can't read (e.g. "high") is ignored, and a key it truncates (e.g. "2.5") keeps
+	 * its historical meaning - the truncated priority - but is reported.
+	 * @param {string} key - The object key as written in the config
+	 * @param {string} option - The option the key came from ("priorities" or "delays")
+	 * @returns {number|null} The numeric priority, or null when the key is ignored
+	 * @private
+	 * @internal
+	 */
+	_resolvePriorityKey(key, option) {
+		if (/^-?\d+$/.test(key)) {
+			return Number(key);
+		}
+
+		const parsed = parseInt(key);
+		const priority = isNaN(parsed) ? null : parsed;
+		const message =
+			priority === null
+				? `Priority key '${key}' in '${option}' is not an integer and was ignored. Priority keys must be integers.`
+				: `Priority key '${key}' in '${option}' is not an integer; it was applied to priority ${priority}. Priority keys must be integers.`;
+		setImmediate(() =>
+			this.emit("warning", {
+				type: "invalid-priority",
+				message,
+				option,
+				key,
+				priority
+			})
+		);
+		return priority;
 	}
 
 	/**
@@ -249,8 +339,9 @@ export class HoldMyTask extends EventEmitter {
 		// First, transform any existing priority configurations to use new property names
 		if (cleanOptions.priorities && typeof cleanOptions.priorities === "object") {
 			for (const [priority, config] of Object.entries(cleanOptions.priorities)) {
-				const priorityNum = parseInt(priority);
-				if (!isNaN(priorityNum) && config != null) {
+				if (config == null) continue;
+				const priorityNum = this._resolvePriorityKey(priority, "priorities");
+				if (priorityNum !== null) {
 					transformedPriorities[priorityNum] = HoldMyTask._transformDelayProperties(config, this);
 				}
 			}
@@ -270,8 +361,9 @@ export class HoldMyTask extends EventEmitter {
 			);
 
 			for (const [priority, delay] of Object.entries(cleanOptions.delays)) {
-				const priorityNum = parseInt(priority);
-				if (!isNaN(priorityNum) && delay != null) {
+				if (delay == null) continue;
+				const priorityNum = this._resolvePriorityKey(priority, "delays");
+				if (priorityNum !== null) {
 					transformedPriorities[priorityNum] = {
 						postDelay: delay, // Use new property name
 						startDelay: 0, // Use new property name
@@ -350,6 +442,9 @@ export class HoldMyTask extends EventEmitter {
 		this.coalescingRepresentatives = new Map(); // representativeTaskId -> { coalescingKey, groupId }
 		this.nextGroupId = 1;
 
+		// Deprecated task-level option names already warned about (one warning per name per instance)
+		this._warnedTaskOptions = new Set();
+
 		if (this.options.autoStart) {
 			this.resume();
 		}
@@ -378,11 +473,13 @@ export class HoldMyTask extends EventEmitter {
 	 * @param {string|number} [options.id] - Custom task ID for identification and later reference (must be unique)
 	 * @param {number} [options.priority] - Task priority (higher numbers run first)
 	 * @param {number} [options.timestamp] - When the task should be ready to run (milliseconds since epoch)
-	 * @param {number} [options.start] - Milliseconds from now when the task should be ready to run (convenience for timestamp calculation)
+	 * @param {number} [options.startDelay] - Milliseconds from now when the task should be ready to run (convenience for timestamp calculation). Overrides the priority's startDelay
+	 * @param {number} [options.start] - DEPRECATED: Use startDelay instead
 	 * @param {AbortSignal} [options.signal] - AbortSignal to cancel the task
 	 * @param {number} [options.timeout] - Task timeout in milliseconds (for execution time limit)
 	 * @param {number} [options.expire] - Task expiration timestamp or milliseconds from now (for queue waiting time limit)
-	 * @param {number} [options.delay] - DEPRECATED: Use postDelay instead. Delay after task completion before next task of same priority
+	 * @param {number} [options.postDelay] - Delay after this task completes before the next task can start. Overrides the priority's postDelay; use -1 to bypass the current delay period
+	 * @param {number} [options.delay] - DEPRECATED: Use postDelay instead
 	 * @param {boolean} [options.bypassDelay] - If true, skip any active delay period and start immediately
 	 * @param {string} [options.coalescingKey] - Key for task coalescing - tasks with same key will be coalesced within windows
 	 * @param {number} [options.coalescingWindowDuration] - Override coalescing window duration (task-level override of key-level and defaults)
@@ -408,8 +505,8 @@ export class HoldMyTask extends EventEmitter {
 	 * // Bypass current delay for urgent task
 	 * const urgent = queue.enqueue(urgentTask, { priority: 10, bypassDelay: true });
 	 *
-	 * // Alternative: use delay: -1 to bypass
-	 * const urgent2 = queue.enqueue(urgentTask, { priority: 10, delay: -1 });
+	 * // Alternative: use postDelay: -1 to bypass
+	 * const urgent2 = queue.enqueue(urgentTask, { priority: 10, postDelay: -1 });
 	 *
 	 * // Coalescing tasks - multiple device status checks become one
 	 * queue.enqueue(checkDeviceStatus, callback1, { coalescingKey: "device-123", coalescingWindowDuration: 1000 });
@@ -438,6 +535,9 @@ export class HoldMyTask extends EventEmitter {
 			finalOptions = { ...optionsOrCallback, ...options };
 		}
 
+		// Task-level delay names: postDelay/startDelay are current, delay/start are deprecated aliases
+		finalOptions = this._normalizeTaskDelayOptions(finalOptions);
+
 		// Generate ID - use custom ID if provided, otherwise auto-generate
 		const id = finalOptions.id ? String(finalOptions.id) : String(this.nextId++);
 
@@ -457,7 +557,7 @@ export class HoldMyTask extends EventEmitter {
 		// Regular task handling - apply priority defaults for start delay
 		const priority = finalOptions.priority ?? this.options.defaultPriority;
 		const priorityConfig = this.getPriorityConfig(priority, finalOptions);
-		const effectiveStart = finalOptions.start ?? priorityConfig.startDelay ?? 0;
+		const effectiveStart = priorityConfig.startDelay ?? 0;
 		const readyAt = finalOptions.timestamp ?? (effectiveStart ? now + effectiveStart : now);
 
 		// Calculate expiration timestamp
@@ -484,8 +584,8 @@ export class HoldMyTask extends EventEmitter {
 			status: "pending",
 			signal: finalOptions.signal,
 			timeout: finalOptions.timeout,
-			delay: finalOptions.delay, // completion delay
-			bypassDelay: finalOptions.bypassDelay || finalOptions.delay === -1, // bypass current delay period
+			delay: finalOptions.postDelay, // task-level completion delay override (undefined = use the priority's postDelay)
+			bypassDelay: finalOptions.bypassDelay || finalOptions.postDelay === -1, // bypass current delay period
 			metadata: finalOptions.metadata
 		};
 
@@ -620,14 +720,14 @@ export class HoldMyTask extends EventEmitter {
 		const priorityConfig = this.getPriorityConfig(priority, options);
 
 		// Apply configuration priority: task options > coalescing key config > priority defaults > coalescing defaults
-		const effectiveStart = options.start ?? coalescingConfig.startDelay ?? priorityConfig.startDelay ?? 0;
+		const effectiveStart = options.startDelay ?? coalescingConfig.startDelay ?? priorityConfig.startDelay ?? 0;
 
 		const readyAt = options.timestamp ?? (effectiveStart ? now + effectiveStart : now);
 		const windowEnd = now + coalescingConfig.windowDuration;
 		const mustRunBy = now + coalescingConfig.maxDelay;
 
 		// Apply effective delay configuration
-		const effectiveDelay = options.delay ?? coalescingConfig.postDelay ?? priorityConfig.postDelay;
+		const effectiveDelay = options.postDelay ?? coalescingConfig.postDelay ?? priorityConfig.postDelay;
 
 		// Create task item (not added to main queue directly)
 		const taskItem = {
@@ -640,7 +740,7 @@ export class HoldMyTask extends EventEmitter {
 			signal: options.signal,
 			timeout: options.timeout,
 			delay: effectiveDelay,
-			bypassDelay: options.bypassDelay || options.delay === -1,
+			bypassDelay: options.bypassDelay || options.postDelay === -1,
 			metadata: options.metadata,
 			coalescingKey,
 			enqueueSeq: this.enqueueSeq++
@@ -1671,8 +1771,9 @@ export class HoldMyTask extends EventEmitter {
 		// Start tasks up to concurrency limits (both global and per-priority)
 		let hasWaitingTasks = false;
 		const currentTime = this.now();
-		const delay = this.lastCompletedPriority !== null ? (this.options.priorities[this.lastCompletedPriority]?.postDelay ?? 0) : 0;
-		const delayActive = delay > 0 && currentTime < this.nextAvailableTime;
+		// nextAvailableTime is only set (non-zero) when the completed task's effective delay - its own
+		// postDelay override or its priority's postDelay - was positive, so it alone decides the gate.
+		const delayActive = currentTime < this.nextAvailableTime;
 
 		while (this.readyHeap.size() > 0) {
 			const task = this.readyHeap.peek();
@@ -1835,17 +1936,34 @@ export class HoldMyTask extends EventEmitter {
 		error.taskId = item.id;
 
 		if (item.callback) {
-			// Callback API - emit error event
+			// Callback API - deliver the failure to the callback
 			try {
 				item.callback(error, null);
 			} catch (err) {
 				this.emit("error", { error: err, task: item });
 			}
-			// Emit error event for callback API
-			this.emit("error", { error, task: item });
+			// Also report it as a queue "error" event, but only to listeners: the callback already
+			// has the failure, so an unhandled-"error" throw would only crash the caller's process.
+			this._emitTaskError({ error, task: item });
 		} else if (item.reject) {
 			// Promise API - just reject, don't emit error event (handled by promise)
 			item.reject(error);
+		}
+	}
+
+	/**
+	 * Emits a task failure as an `error` event when, and only when, a listener is attached.
+	 * Used for callback-API task failures, which are always delivered to the task's callback
+	 * as well; with no listener, EventEmitter would otherwise throw the event and crash the
+	 * process before (or after) the callback could handle it.
+	 * @param {Object} payload - Event payload
+	 * @returns {void}
+	 * @private
+	 * @internal
+	 */
+	_emitTaskError(payload) {
+		if (this.listenerCount("error") > 0) {
+			this.emit("error", payload);
 		}
 	}
 
@@ -1934,9 +2052,10 @@ export class HoldMyTask extends EventEmitter {
 					: "error";
 			item.finishedAt = this.now();
 
-			// Emit error event only for callback API (promise API conveys error via rejection)
+			// Emit error event only for callback API (promise API conveys error via rejection),
+			// and only to listeners - the callback below always receives the failure.
 			if (item.callback) {
-				this.emit("error", item);
+				this._emitTaskError(item);
 			}
 
 			// Store final values on promise handle before rejecting (for promise API)
@@ -2050,8 +2169,7 @@ export class HoldMyTask extends EventEmitter {
 
 		// Check if we have ready tasks that can run immediately
 		if (this.readyHeap.size() > 0 && this.running.size < this.options.concurrency) {
-			const delay = this.lastCompletedPriority !== null ? (this.options.priorities[this.lastCompletedPriority]?.postDelay ?? 0) : 0;
-			const delayActive = delay > 0 && now < this.nextAvailableTime;
+			const delayActive = now < this.nextAvailableTime;
 
 			if (!delayActive) {
 				shouldRunNow = true;
@@ -2246,7 +2364,7 @@ export class HoldMyTask extends EventEmitter {
 	 * // Check with task-level overrides
 	 * const effectiveConfig = queue.getCoalescingConfig('ui.update', {
 	 *   coalescingWindowDuration: 50,
-	 *   delay: 30  // Still accepts old property names for backwards compatibility
+	 *   postDelay: 30  // Deprecated task-level name delay is still accepted
 	 * });
 	 */
 	getCoalescingConfig(coalescingKey, taskOptions = {}) {
@@ -2254,8 +2372,9 @@ export class HoldMyTask extends EventEmitter {
 		const defaults = this.options.coalescing.defaults;
 		const priorityConfig = this.getPriorityConfig(taskOptions.priority ?? this.options.defaultPriority);
 
-		const postDelay = taskOptions.delay ?? keyConfig.postDelay ?? priorityConfig.postDelay ?? defaults.postDelay;
-		const startDelay = taskOptions.start ?? keyConfig.startDelay ?? priorityConfig.startDelay ?? defaults.startDelay;
+		const postDelay = taskOptions.postDelay ?? taskOptions.delay ?? keyConfig.postDelay ?? priorityConfig.postDelay ?? defaults.postDelay;
+		const startDelay =
+			taskOptions.startDelay ?? taskOptions.start ?? keyConfig.startDelay ?? priorityConfig.startDelay ?? defaults.startDelay;
 
 		return {
 			windowDuration: taskOptions.coalescingWindowDuration ?? keyConfig.windowDuration ?? defaults.windowDuration,
@@ -2356,15 +2475,15 @@ export class HoldMyTask extends EventEmitter {
 	 *
 	 * // Check with task-level overrides
 	 * const effectiveConfig = queue.getPriorityConfig(1, {
-	 *   delay: 50,
-	 *   start: 10
+	 *   postDelay: 50,
+	 *   startDelay: 10 // Deprecated task-level names delay/start are still accepted
 	 * });
 	 */
 	getPriorityConfig(priority, taskOptions = {}) {
 		const priorityConfig = this.options.priorities[priority] || {};
 
-		const postDelay = taskOptions.delay ?? priorityConfig.postDelay;
-		const startDelay = taskOptions.start ?? priorityConfig.startDelay;
+		const postDelay = taskOptions.postDelay ?? taskOptions.delay ?? priorityConfig.postDelay;
+		const startDelay = taskOptions.startDelay ?? taskOptions.start ?? priorityConfig.startDelay;
 
 		return {
 			// New clear property names

@@ -67,6 +67,7 @@ export declare class HoldMyTask extends EventEmitter {
 	coalescingGroups: Map<any, any> | undefined;
 	coalescingRepresentatives: Map<any, any> | undefined;
 	nextGroupId: number | undefined;
+	_warnedTaskOptions: Set<any> | undefined;
 	timeoutId: number | undefined;
 	constructor(options?: {});
 	/**
@@ -107,11 +108,13 @@ export declare class HoldMyTask extends EventEmitter {
 	 * @param {string|number} [options.id] - Custom task ID for identification and later reference (must be unique)
 	 * @param {number} [options.priority] - Task priority (higher numbers run first)
 	 * @param {number} [options.timestamp] - When the task should be ready to run (milliseconds since epoch)
-	 * @param {number} [options.start] - Milliseconds from now when the task should be ready to run (convenience for timestamp calculation)
+	 * @param {number} [options.startDelay] - Milliseconds from now when the task should be ready to run (convenience for timestamp calculation). Overrides the priority's startDelay
+	 * @param {number} [options.start] - DEPRECATED: Use startDelay instead
 	 * @param {AbortSignal} [options.signal] - AbortSignal to cancel the task
 	 * @param {number} [options.timeout] - Task timeout in milliseconds (for execution time limit)
 	 * @param {number} [options.expire] - Task expiration timestamp or milliseconds from now (for queue waiting time limit)
-	 * @param {number} [options.delay] - DEPRECATED: Use postDelay instead. Delay after task completion before next task of same priority
+	 * @param {number} [options.postDelay] - Delay after this task completes before the next task can start. Overrides the priority's postDelay; use -1 to bypass the current delay period
+	 * @param {number} [options.delay] - DEPRECATED: Use postDelay instead
 	 * @param {boolean} [options.bypassDelay] - If true, skip any active delay period and start immediately
 	 * @param {string} [options.coalescingKey] - Key for task coalescing - tasks with same key will be coalesced within windows
 	 * @param {number} [options.coalescingWindowDuration] - Override coalescing window duration (task-level override of key-level and defaults)
@@ -137,8 +140,8 @@ export declare class HoldMyTask extends EventEmitter {
 	 * // Bypass current delay for urgent task
 	 * const urgent = queue.enqueue(urgentTask, { priority: 10, bypassDelay: true });
 	 *
-	 * // Alternative: use delay: -1 to bypass
-	 * const urgent2 = queue.enqueue(urgentTask, { priority: 10, delay: -1 });
+	 * // Alternative: use postDelay: -1 to bypass
+	 * const urgent2 = queue.enqueue(urgentTask, { priority: 10, postDelay: -1 });
 	 *
 	 * // Coalescing tasks - multiple device status checks become one
 	 * queue.enqueue(checkDeviceStatus, callback1, { coalescingKey: "device-123", coalescingWindowDuration: 1000 });
@@ -151,10 +154,12 @@ export declare class HoldMyTask extends EventEmitter {
 			id?: string | number;
 			priority?: number;
 			timestamp?: number;
+			startDelay?: number;
 			start?: number;
 			signal?: AbortSignal;
 			timeout?: number;
 			expire?: number;
+			postDelay?: number;
 			delay?: number;
 			bypassDelay?: boolean;
 			coalescingKey?: string;
@@ -428,7 +433,7 @@ export declare class HoldMyTask extends EventEmitter {
 	 * // Check with task-level overrides
 	 * const effectiveConfig = queue.getCoalescingConfig('ui.update', {
 	 *   coalescingWindowDuration: 50,
-	 *   delay: 30  // Still accepts old property names for backwards compatibility
+	 *   postDelay: 30  // Deprecated task-level name delay is still accepted
 	 * });
 	 */
 	getCoalescingConfig(coalescingKey: string, taskOptions?: Object): Object;
@@ -488,8 +493,8 @@ export declare class HoldMyTask extends EventEmitter {
 	 *
 	 * // Check with task-level overrides
 	 * const effectiveConfig = queue.getPriorityConfig(1, {
-	 *   delay: 50,
-	 *   start: 10
+	 *   postDelay: 50,
+	 *   startDelay: 10 // Deprecated task-level names delay/start are still accepted
 	 * });
 	 */
 	getPriorityConfig(priority: number, taskOptions?: Object): Object;
