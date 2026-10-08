@@ -16,19 +16,18 @@ Use it with callbacks or promises, from ESM or CommonJS, with full TypeScript de
 
 ## ✨ What's New
 
-### Latest: v2.0.5 (October 2026)
+### Latest: v2.0.6 (October 2026)
 
-- **Task-level `postDelay` / `startDelay` work as documented** — `enqueue()` now honors the documented `postDelay` and `startDelay` task options, and a task-level completion delay is enforced even when the task's priority has no `postDelay` of its own. The old `delay` / `start` names still work as deprecated aliases and emit one `deprecation` warning per queue instance.
-- **Safer failure reporting** — A failing callback-style task no longer crashes the process when no `error` listener is attached; the failure always reaches the callback, and the `error` event is emitted only when someone listens. Non-integer `priorities` keys now produce an `invalid-priority` warning instead of being dropped silently. The README was rewritten to the CLDMV layout with every example on the current API.
-- **Header tooling on fix-headers 2.2.0** — the `@cldmv/fix-headers` and `@cldmv/configs` dev dependencies move to 2.2.0 and 1.2.4, so `@Last modified by` now follows content edits only; no file was restamped, and the published package is unaffected (#61, #62).
-- [View full v2.0.5 Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.5.md)
+- **Development dependencies only** — `eslint` 10.12.0, `globals` 17.13.0, `@cldmv/vitest-runner` 1.5.3 and `@types/node` 26.6.4, all lockfile-only moves. The published package and its supported Node.js range (`>=18.12`) are unchanged (#64, #65, #66).
+- **Test runner now declares Node.js 22.12 or newer** — `@cldmv/vitest-runner` 1.5.3 raises its minimum from 20.19 and brings `chalk` 6; the development toolchain already needed 22.12.
+- [View full v2.0.6 Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.6.md)
 
 ### Recent Releases
 
+- **v2.0.5** (October 2026) — Task-level `postDelay` / `startDelay` honored, failing callback tasks no longer crash the process, and header tooling on fix-headers 2.2.0 ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.5.md))
 - **v2.0.4** (October 2026) — Clearer `require()` error on Node.js without `require(esm)`; `brace-expansion` security patch in development tooling ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.4.md))
 - **v2.0.3** (October 2026) — Development toolchain moves to vitest 5; bundle-size and v4 workflow updates; verbatim Apache-2.0 license text ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.3.md))
 - **v2.0.2** (September 2026) — Development dependency update (`@humanfs/node`); no other changes ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.2.md))
-- **v2.0.1** (September 2026) — Fix: a task's timeout timer is now cleared when the task fails or is cancelled ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.1.md))
 
 📚 **For complete version history and detailed release notes, see the [docs/changelog/](https://github.com/CLDMV/holdmytask/tree/master/docs/changelog/) folder.**
 
