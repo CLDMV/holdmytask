@@ -7,7 +7,7 @@
  *	@Email: <Shinrai@users.noreply.github.com>
  *	-----
  *	@Last modified by: Nate Corcoran <CLDMV> (Shinrai@users.noreply.github.com)
- *	@Last modified time: 2026-10-03T10:31:55-07:00 (1791048715)
+ *	@Last modified time: 2026-11-01T09:54:16-08:00 (1793555656)
  *	-----
  *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
  *
@@ -108,12 +108,6 @@ test("the holdmytask-dev condition routes require() and import() of the package 
 	assert.equal(esm.HoldMyTask, (await import("../../src/index.mjs")).HoldMyTask);
 });
 
-test("dist/index.mjs loads ../devcheck.mjs instead of bundling it", () => {
-	const bundle = fs.readFileSync(path.join(repoRoot, "dist/index.mjs"), "utf8");
-	assert.match(bundle, /createRequire\(import\.meta\.url\)\(\s*["']\.\.\/devcheck\.mjs["']\s*\)/);
-	assert.doesNotMatch(bundle, /Development environment not properly configured/);
-});
-
 test("dist/main.mjs re-exports dist/index.mjs instead of carrying a second bundle", () => {
 	const alias = fs.readFileSync(path.join(repoRoot, "dist/main.mjs"), "utf8");
 	assert.match(alias, /from\s*["']\.\/index\.mjs["']/);
@@ -137,9 +131,9 @@ function runModule(nodeArgs, code) {
 }
 
 test("the deprecated ./main alias warns once and exports the root's objects (dist)", () => {
-	// The condition only satisfies devcheck here (dist/ is loaded by path, not through it).
+	// dist/ is loaded by path, so no condition is needed.
 	const ok = runModule(
-		["--conditions=holdmytask-dev"],
+		[],
 		`const a = await import("./dist/main.mjs"); await import("./dist/main.mjs");
 		const root = await import("./dist/index.mjs");
 		if (a.HoldMyTask !== root.HoldMyTask || a.default !== root.default) process.exit(2);
@@ -149,23 +143,4 @@ test("the deprecated ./main alias warns once and exports the root's objects (dis
 	assert.deepEqual(JSON.parse(ok.stdout), ESM_KEYS);
 	assert.equal(ok.stderr.match(/CLDMV_HOLDMYTASK_MAIN/g)?.length, 1, ok.stderr);
 	assert.match(ok.stderr, /DeprecationWarning: "@cldmv\/holdmytask\/main" is deprecated; import "@cldmv\/holdmytask" instead\./);
-});
-
-test("the src entry exits before any library code without the holdmytask-dev condition", () => {
-	for (const [file, code] of [
-		["src/index.mjs", `await import("./src/index.mjs"); console.log("loaded");`],
-		[
-			"src/index.cjs",
-			`import { createRequire } from "node:module"; createRequire(import.meta.url)("./src/index.cjs"); console.log("loaded");`
-		]
-	]) {
-		const res = runModule([], code);
-		assert.equal(res.status, 1, `${file}: ${res.stderr}`);
-		assert.doesNotMatch(res.stdout, /loaded/, file);
-		assert.match(res.stderr, /holdmytask-dev/, file);
-
-		const ok = runModule(["--conditions=holdmytask-dev"], code);
-		assert.equal(ok.status, 0, `${file}: ${ok.stderr}`);
-		assert.match(ok.stdout, /loaded/, file);
-	}
 });

@@ -7,7 +7,7 @@
  *	@Email: <Shinrai@users.noreply.github.com>
  *	-----
  *	@Last modified by: Nate Corcoran <CLDMV> (Shinrai@users.noreply.github.com)
- *	@Last modified time: 2026-11-01T00:00:00-07:00 (1793516400)
+ *	@Last modified time: 2026-11-01T09:54:17-08:00 (1793555657)
  *	-----
  *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
  *
@@ -23,9 +23,7 @@
  *  - dist/main.mjs — the deprecated "./main" alias (src/main.mjs). ./index.mjs is external, so
  *    it imports dist/index.mjs instead of carrying a second copy of the bundle.
  *
- * ../devcheck.mjs stays external in both: it lives at the repo root, is never published, and
- * the entry loads it by path (and skips it when it is absent), so src/ and dist/ run the same
- * root file in a checkout. Output is minified with names kept; sourcemaps are generated for
+ * Output is minified with names kept; sourcemaps are generated for
  * local debugging and excluded from the tarball via package.json "files".
  */
 import { copyFileSync } from "node:fs";
@@ -57,7 +55,6 @@ export default defineConfig([
 	{
 		...shared,
 		entry: { index: "src/index.mjs" },
-		external: ["../devcheck.mjs"],
 		// tsup calls this on the resolved options, so `this.outDir` is the directory the build
 		// actually wrote to.
 		onSuccess() {
@@ -67,6 +64,6 @@ export default defineConfig([
 	{
 		...shared,
 		entry: { main: "src/main.mjs" },
-		external: ["../devcheck.mjs", "./index.mjs"]
+		external: ["./index.mjs"]
 	}
 ]);

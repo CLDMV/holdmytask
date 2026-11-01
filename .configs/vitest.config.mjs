@@ -7,7 +7,7 @@
  *	@Email: <Shinrai@users.noreply.github.com>
  *	-----
  *	@Last modified by: Nate Corcoran <CLDMV> (Shinrai@users.noreply.github.com)
- *	@Last modified time: 2026-10-02T12:20:12-07:00 (1790968812)
+ *	@Last modified time: 2026-11-01T09:53:57-08:00 (1793555637)
  *	-----
  *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
  *
@@ -27,8 +27,7 @@ export default defineConfig({
 	// "." export in package.json). Tests exercise and cover the SOURCE tree, so the
 	// resolver must add `holdmytask-dev`. This *replaces* vite's default conditions, so
 	// the usual ones are kept alongside it. `test.nodeOptions` below carries the same
-	// condition into forked test workers, so Node's own resolver and devcheck.mjs see it
-	// too, and a bare local `npm test` resolves to src the same way CI does. Mirrors
+	// condition into forked test workers, so Node's own resolver sees it too, and a bare local `npm test` resolves to src the same way CI does. Mirrors
 	// @cldmv/uuid.
 	resolve: {
 		conditions: ["holdmytask-dev", "module", "browser", "development|production"]
@@ -48,8 +47,8 @@ export default defineConfig({
 		environment: "node",
 		globals: true,
 		testTimeout: 30000,
-		// Carry the dev condition into forked workers: Node's own resolver and
-		// devcheck.mjs (which exits without it) read it from execArgv. NODE_ENV is left
+		// Carry the dev condition into forked workers: Node's own resolver reads it from
+		// execArgv. NODE_ENV is left
 		// alone: it does not select the conditional export (that's `--conditions`), and
 		// forcing a non-standard `NODE_ENV=holdmytask-dev` could confuse deps that key
 		// off the usual test/development/production values.
