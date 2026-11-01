@@ -54,8 +54,8 @@ Use it with callbacks or promises, from ESM or CommonJS, with full TypeScript de
 
 ### Requirements
 
-- **Node.js v18.12.0 or higher** for ESM (`import`), as declared in the package's `engines` field
-- **CommonJS `require()`** needs Node.js `^20.19.0` or `>=22.12.0`. The CommonJS entry is a thin wrapper that loads the ESM build through Node's synchronous `require(esm)`. On older Node.js versions `require("@cldmv/holdmytask")` throws an `ERR_REQUIRE_ESM` error that names the supported versions; load the package with `import()` instead.
+- **Node.js `^20.19.0` or `>=22.13.0`**, as declared in the package's `engines` field
+- **CommonJS `require()`** uses the same range. The CommonJS entry is a thin wrapper that loads the ESM build through Node's synchronous `require(esm)`. On older Node.js versions `require("@cldmv/holdmytask")` throws an `ERR_REQUIRE_ESM` error that names the supported versions; load the package with `import()` instead.
 
 ### Install
 
