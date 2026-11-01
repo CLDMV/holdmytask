@@ -22,7 +22,6 @@ export function createTaskManager(options?: object): Promise<HoldMyTask>;
  * @returns {Promise<HoldMyTask>} HoldMyTask instance
  */
 export function createTaskProcessor(options?: object): Promise<HoldMyTask>;
-export default HoldMyTask;
 import { HoldMyTask } from "./hold-my-task.mjs";
-export { HoldMyTask, HoldMyTask as queue, HoldMyTask as Queue, HoldMyTask as TaskManager, HoldMyTask as TaskQueue, HoldMyTask as QueueManager, HoldMyTask as TaskProcessor };
+export { HoldMyTask, HoldMyTask as default, HoldMyTask as queue, HoldMyTask as Queue, HoldMyTask as TaskManager, HoldMyTask as TaskQueue, HoldMyTask as QueueManager, HoldMyTask as TaskProcessor };
 //# sourceMappingURL=index.d.mts.map

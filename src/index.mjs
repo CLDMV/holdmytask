@@ -7,7 +7,7 @@
  *	@Email: <Shinrai@users.noreply.github.com>
  *	-----
  *	@Last modified by: Nate Corcoran <CLDMV> (Shinrai@users.noreply.github.com)
- *	@Last modified time: 2026-11-01T09:54:10-08:00 (1793555650)
+ *	@Last modified time: 2026-11-01T15:26:38-08:00 (1793575598)
  *	-----
  *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
  *
@@ -53,8 +53,7 @@ export async function createTaskProcessor(options = {}) {
 
 // HoldMyTask and its constructor aliases are the real class (see issue #3) - `new
 // HoldMyTask()`, `new QueueManager()`, etc. all construct the same underlying type.
-export { HoldMyTask };
-export default HoldMyTask;
+export { HoldMyTask, HoldMyTask as default };
 export { HoldMyTask as queue };
 export { HoldMyTask as Queue };
 export { HoldMyTask as TaskManager };
