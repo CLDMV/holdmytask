@@ -1,34 +1,13 @@
 /**
- *
- *	@Project: @cldmv/holdmytask
- *	@Filename: /examples/old/breaking-point-analysis.mjs
- *	@Date: 2025-11-12T17:17:47-08:00 (1762996667)
- *	@Author: Nate Corcoran <CLDMV>
- *	@Email: <Shinrai@users.noreply.github.com>
- *	-----
- *	@Last modified by: Nate Corcoran <CLDMV> (Shinrai@users.noreply.github.com)
- *	@Last modified time: 2026-10-02T12:20:22-07:00 (1790968822)
- *	-----
- *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
- *
- */
-/**
- * Comprehensive Timing Test: Find the Breaking Point
- *
- * This test systematically varies device command delays to find exactly
- * when the coalescing race condition becomes a problem.
- */
-import { HoldMyTask } from "../../src/index.mjs";
-/**
  * Device with configurable delays
  */
-declare class ConfigurableDelayDevice {
+export class ConfigurableDelayDevice {
+    constructor(initialVolume?: number, commandDelay?: number, infoDelay?: number);
     volume: number;
     commandCount: number;
     infoRequestCount: number;
     commandDelay: number;
     infoDelay: number;
-    constructor(initialVolume?: number, commandDelay?: number, infoDelay?: number);
     volumeCommand(change: any): Promise<{
         commandId: number;
         oldVolume: number;
@@ -53,13 +32,13 @@ declare class ConfigurableDelayDevice {
 /**
  * Controller for timing tests
  */
-declare class TimingTestController {
+export class TimingTestController {
+    constructor(device: any, coalescingWindowDuration?: number);
     device: any;
     coalescingWindowDuration: number;
     queue: HoldMyTask;
     commandCounter: number;
     results: any[];
-    constructor(device: any, coalescingWindowDuration?: number);
     volumeUp(amount?: number): Promise<{
         commandId: number;
         userActionTime: number;
@@ -87,7 +66,7 @@ declare class TimingTestController {
 /**
  * Test different device delays to find the breaking point
  */
-declare function findBreakingPoint(): Promise<{
+export function findBreakingPoint(): Promise<{
     description: string | number;
     commandDelay: string | number;
     coalescingWindow: string | number;
@@ -100,5 +79,5 @@ declare function findBreakingPoint(): Promise<{
     deviceInfoRequests: any;
     coalescingEfficiency: number;
 }[]>;
-export { ConfigurableDelayDevice, TimingTestController, findBreakingPoint };
+import { HoldMyTask } from "../../src/index.mjs";
 //# sourceMappingURL=breaking-point-analysis.d.mts.map

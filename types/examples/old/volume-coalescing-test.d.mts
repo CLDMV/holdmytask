@@ -1,36 +1,12 @@
 /**
- *
- *	@Project: @cldmv/holdmytask
- *	@Filename: /examples/old/volume-coalescing-test.mjs
- *	@Date: 2025-11-12T17:17:47-08:00 (1762996667)
- *	@Author: Nate Corcoran <CLDMV>
- *	@Email: <Shinrai@users.noreply.github.com>
- *	-----
- *	@Last modified by: Nate Corcoran <CLDMV> (Shinrai@users.noreply.github.com)
- *	@Last modified time: 2026-10-02T12:20:26-07:00 (1790968826)
- *	-----
- *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
- *
- */
-/**
- * Proper Coalescing Test: Volume Commands with Updates
- *
- * Tests 5 volume increase commands, each with:
- * - Volume command (immediate execution)
- * - Update command (coalesced with key "volume.up")
- *
- * Uses proper queue timing controls instead of device simulation.
- */
-import { HoldMyTask } from "../../src/index.mjs";
-/**
  * Simple volume system that tracks state
  */
-declare class VolumeSystem {
+export class VolumeSystem {
+    constructor(initialVolume?: number);
     volume: number;
     commandCount: number;
     updateCount: number;
     log: any[];
-    constructor(initialVolume?: number);
     /**
      * Execute a volume command (changes the actual volume)
      */
@@ -62,11 +38,11 @@ declare class VolumeSystem {
 /**
  * Controller that implements volume commands with coalesced updates
  */
-declare class VolumeController {
+export class VolumeController {
+    constructor(volumeSystem: any, queueOptions?: {});
     volumeSystem: any;
     queue: HoldMyTask;
     commandCounter: number;
-    constructor(volumeSystem: any, queueOptions?: {});
     /**
      * Volume up command with coalesced update
      */
@@ -87,7 +63,7 @@ declare class VolumeController {
 /**
  * Test different timing scenarios
  */
-declare function testVolumeCoalescing(): Promise<{
+export function testVolumeCoalescing(): Promise<{
     scenario: string;
     totalDuration: number;
     accurateCommands: number;
@@ -99,5 +75,5 @@ declare function testVolumeCoalescing(): Promise<{
     updateCommandsExecuted: number;
     coalescingEfficiency: number;
 }[]>;
-export { VolumeSystem, VolumeController, testVolumeCoalescing };
+import { HoldMyTask } from "../../src/index.mjs";
 //# sourceMappingURL=volume-coalescing-test.d.mts.map

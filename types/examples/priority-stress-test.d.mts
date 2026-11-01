@@ -1,35 +1,12 @@
 /**
- *
- *	@Project: @cldmv/holdmytask
- *	@Filename: /examples/priority-stress-test.mjs
- *	@Date: 2025-11-12T17:17:47-08:00 (1762996667)
- *	@Author: Nate Corcoran <CLDMV>
- *	@Email: <Shinrai@users.noreply.github.com>
- *	-----
- *	@Last modified by: Nate Corcoran <CLDMV> (Shinrai@users.noreply.github.com)
- *	@Last modified time: 2026-10-02T12:20:27-07:00 (1790968827)
- *	-----
- *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
- *
- */
-/**
- * Priority Stress Test: Real-world Volume Commands with Priority Delays
- *
- * Tests realistic scenarios where:
- * - Volume commands are high priority user actions with 100ms base delay
- * - Update commands are low priority internal actions with 500ms base delay + 500ms start delay
- * - Simulates real user input patterns with varying delays
- */
-import { HoldMyTask } from "../src/index.mjs";
-/**
  * Volume system with realistic timing
  */
-declare class RealisticVolumeSystem {
+export class RealisticVolumeSystem {
+    constructor(initialVolume?: number);
     volume: number;
     commandCount: number;
     updateCount: number;
     log: any[];
-    constructor(initialVolume?: number);
     executeVolumeCommand(change: any, commandId: any): Promise<{
         commandId: any;
         oldVolume: number;
@@ -57,11 +34,11 @@ declare class RealisticVolumeSystem {
 /**
  * Realistic volume controller with proper priorities and delays
  */
-declare class PriorityVolumeController {
+export class PriorityVolumeController {
+    constructor(volumeSystem: any, queueOptions?: {});
     volumeSystem: any;
     queue: HoldMyTask;
     commandCounter: number;
-    constructor(volumeSystem: any, queueOptions?: {});
     /**
      * Volume up with realistic "fire and forget" pattern
      * REAL-WORLD PATTERN: Volume task enqueues update task AFTER completing volume change
@@ -72,7 +49,7 @@ declare class PriorityVolumeController {
 /**
  * Stress test scenarios
  */
-declare function runPriorityStressTests(): Promise<{
+export function runPriorityStressTests(): Promise<{
     scenario: string;
     totalDuration: number;
     accurateCommands: any;
@@ -85,5 +62,5 @@ declare function runPriorityStressTests(): Promise<{
     coalescingEfficiency: number;
     averageCommandDuration: number;
 }[]>;
-export { RealisticVolumeSystem, PriorityVolumeController, runPriorityStressTests };
+import { HoldMyTask } from "../src/index.mjs";
 //# sourceMappingURL=priority-stress-test.d.mts.map

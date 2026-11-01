@@ -1,36 +1,11 @@
 /**
- *
- *	@Project: @cldmv/holdmytask
- *	@Filename: /examples/old/device-simulation.mjs
- *	@Date: 2025-11-12T17:17:47-08:00 (1762996667)
- *	@Author: Nate Corcoran <CLDMV>
- *	@Email: <Shinrai@users.noreply.github.com>
- *	-----
- *	@Last modified by: Nate Corcoran <CLDMV> (Shinrai@users.noreply.github.com)
- *	@Last modified time: 2026-10-02T12:20:23-07:00 (1790968823)
- *	-----
- *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
- *
- */
-/**
- * Pseudo Device System for Testing Coalescing Behavior
- *
- * This simulates a real device that:
- * 1. Has its own internal state (volume level)
- * 2. Responds to volume up/down commands
- * 3. Responds to info requests with current state
- * 4. Has realistic communication delays
- */
-import { HoldMyTask } from "../../src/index.mjs";
-import { EventEmitter } from "events";
-/**
  * Simulated device that tracks its own state
  */
-declare class PseudoDevice {
+export class PseudoDevice {
+    constructor(initialVolume?: number);
     volume: number;
     commandCount: number;
     infoRequestCount: number;
-    constructor(initialVolume?: number);
     /**
      * Device receives a volume change command
      */
@@ -62,12 +37,12 @@ declare class PseudoDevice {
 /**
  * Controller that uses the queue system to communicate with the device
  */
-declare class DeviceController extends EventEmitter {
+export class DeviceController {
+    constructor(device: any, queueOptions?: {});
     device: any;
     queue: HoldMyTask;
     optimisticVolume: any;
     pendingChanges: number;
-    constructor(device: any, queueOptions?: {});
     /**
      * User calls volumeUp - this should update device and then get fresh info
      */
@@ -90,7 +65,7 @@ declare class DeviceController extends EventEmitter {
 /**
  * Test scenario: Rapid volume commands
  */
-declare function testRapidVolumeCommands(): Promise<{
+export function testRapidVolumeCommands(): Promise<{
     expectedVolume: number;
     actualVolume: number;
     totalCommands: number;
@@ -100,6 +75,6 @@ declare function testRapidVolumeCommands(): Promise<{
 /**
  * Test different coalescing configurations
  */
-declare function testCoalescingConfigurations(): Promise<void>;
-export { PseudoDevice, DeviceController, testRapidVolumeCommands, testCoalescingConfigurations };
+export function testCoalescingConfigurations(): Promise<void>;
+import { HoldMyTask } from "../../src/index.mjs";
 //# sourceMappingURL=device-simulation.d.mts.map

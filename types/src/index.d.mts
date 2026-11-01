@@ -1,48 +1,28 @@
 /**
- *
- *	@Project: @cldmv/holdmytask
- *	@Filename: /src/index.mjs
- *	@Date: 2025-11-08T14:04:10-08:00 (1762639450)
- *	@Author: Nate Corcoran <CLDMV>
- *	@Email: <Shinrai@users.noreply.github.com>
- *	-----
- *	@Last modified by: Nate Corcoran <CLDMV> (Shinrai@users.noreply.github.com)
- *	@Last modified time: 2026-11-01T09:54:10-08:00 (1793555650)
- *	-----
- *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
- *
- */
-import { HoldMyTask } from "./hold-my-task.mjs";
-/**
  * Creates a HoldMyTask instance for task queue management
  * @param {object} [options={}] - Configuration options
  * @returns {Promise<HoldMyTask>} HoldMyTask instance
  */
-export declare function createHoldMyTask(options?: object): Promise<HoldMyTask>;
+export function createHoldMyTask(options?: object): Promise<HoldMyTask>;
 /**
  * Create a task queue instance
  * @param {object} [options={}] - Configuration options
  * @returns {Promise<HoldMyTask>} HoldMyTask instance
  */
-export declare function createQueue(options?: object): Promise<HoldMyTask>;
+export function createQueue(options?: object): Promise<HoldMyTask>;
 /**
  * Create a task manager instance
  * @param {object} [options={}] - Configuration options
  * @returns {Promise<HoldMyTask>} HoldMyTask instance
  */
-export declare function createTaskManager(options?: object): Promise<HoldMyTask>;
+export function createTaskManager(options?: object): Promise<HoldMyTask>;
 /**
  * Create a task processor instance
  * @param {object} [options={}] - Configuration options
  * @returns {Promise<HoldMyTask>} HoldMyTask instance
  */
-export declare function createTaskProcessor(options?: object): Promise<HoldMyTask>;
-export { HoldMyTask };
+export function createTaskProcessor(options?: object): Promise<HoldMyTask>;
 export default HoldMyTask;
-export { HoldMyTask as queue };
-export { HoldMyTask as Queue };
-export { HoldMyTask as TaskManager };
-export { HoldMyTask as TaskQueue };
-export { HoldMyTask as QueueManager };
-export { HoldMyTask as TaskProcessor };
+import { HoldMyTask } from "./hold-my-task.mjs";
+export { HoldMyTask, HoldMyTask as queue, HoldMyTask as Queue, HoldMyTask as TaskManager, HoldMyTask as TaskQueue, HoldMyTask as QueueManager, HoldMyTask as TaskProcessor };
 //# sourceMappingURL=index.d.mts.map
