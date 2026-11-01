@@ -21,7 +21,7 @@
 		}
 	},
 	"engines": {
-		"node": ">=18.12"
+		"node": "^20.19.0 || >=22.13.0"
 	},
 	"scripts": {
 		"test": "node tests/run-vitest.mjs && npm run test:cjs",
