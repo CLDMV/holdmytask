@@ -22,7 +22,7 @@
  * - Simulates real user input patterns with varying delays
  */
 
-import { HoldMyTask } from "../index.mjs";
+import { HoldMyTask } from "../src/index.mjs";
 
 /**
  * Priority levels for real-world scenarios

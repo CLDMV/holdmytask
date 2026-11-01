@@ -21,7 +21,7 @@
  * module doesn't know when coalescing will trigger.
  */
 
-import { HoldMyTask } from "../../index.mjs";
+import { HoldMyTask } from "../../src/index.mjs";
 
 // PROBLEMATIC IMPLEMENTATION (from previous example)
 class ProblematicDeviceController {

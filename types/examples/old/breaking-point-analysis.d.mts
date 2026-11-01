@@ -13,6 +13,13 @@
  *
  */
 /**
+ * Comprehensive Timing Test: Find the Breaking Point
+ *
+ * This test systematically varies device command delays to find exactly
+ * when the coalescing race condition becomes a problem.
+ */
+import { HoldMyTask } from "../../src/index.mjs";
+/**
  * Device with configurable delays
  */
 declare class ConfigurableDelayDevice {
@@ -49,7 +56,7 @@ declare class ConfigurableDelayDevice {
 declare class TimingTestController {
 	device: any;
 	coalescingWindowDuration: number;
-	queue: any;
+	queue: HoldMyTask;
 	commandCounter: number;
 	results: any[];
 	constructor(device: any, coalescingWindowDuration?: number);

@@ -2,33 +2,36 @@
 	"name": "@cldmv/holdmytask",
 	"version": "2.0.7",
 	"description": "A tiny task queue that waits until your task is ready",
-	"main": "./index.cjs",
-	"module": "./index.mjs",
-	"types": "./types/index.d.mts",
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.mjs",
+	"types": "./types/src/index.d.mts",
 	"exports": {
 		".": {
-			"types": "./types/index.d.mts",
-			"import": "./index.mjs",
-			"require": "./index.cjs"
+			"holdmytask-dev": {
+				"types": "./types/src/index.d.mts",
+				"import": "./src/index.mjs",
+				"require": "./src/index.cjs"
+			},
+			"types": "./types/src/index.d.mts",
+			"import": "./dist/index.mjs",
+			"require": "./dist/index.cjs"
 		},
 		"./main": {
 			"holdmytask-dev": {
-				"types": "./types/src/hold-my-task.d.mts",
-				"import": "./src/hold-my-task.mjs"
+				"types": "./types/src/index.d.mts",
+				"import": "./src/main.mjs"
 			},
-			"types": "./types/dist/hold-my-task.d.mts",
-			"import": "./dist/hold-my-task.mjs"
+			"types": "./types/src/index.d.mts",
+			"import": "./dist/main.mjs"
 		}
 	},
 	"engines": {
-		"node": "^20.19.0 || >=22.13.0"
+		"node": ">=22.22.0"
 	},
 	"scripts": {
 		"test": "node tests/run-vitest.mjs && npm run test:cjs",
-		"test:cjs": "node --conditions=holdmytask-dev --test tests/cjs/entry.test.cjs",
+		"test:cjs": "npm run build && node --conditions=holdmytask-dev --test tests/cjs/entry.test.cjs",
 		"test:watch": "vitest --config .configs/vitest.config.mjs",
-		"test:run": "vitest run",
-		"test:coverage": "vitest run --coverage",
 		"test:types": "tsc --noEmit --project .configs/tsconfig.dts.jsonc",
 		"coverage": "node tests/run-vitest.mjs --coverage-quiet && npm run test:cjs",
 		"ci:coverage": "npm run coverage",
@@ -36,9 +39,10 @@
 		"lint:fix": "eslint --config .configs/eslint.config.mjs . --fix",
 		"format": "prettier --config .configs/.prettierrc --write .",
 		"format:check": "prettier --config .configs/.prettierrc --check .",
-		"build": "node build.mjs",
+		"build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsup",
 		"build:types": "tsc --project .configs/tsconfig.dts.jsonc",
-		"build:ci": "npm run build:types && npm run test:types && npm run build",
+		"build:ci": "npm run lint && npm run format:check && npm run build:types && npm run test:types && npm run build",
+		"prepack": "npm run build",
 		"precommit": "npm run build:types && npm run test:types && npm run lint && npm run test",
 		"fix:headers": "fix-headers --config .configs/fix-headers.json"
 	},
@@ -97,6 +101,7 @@
 		"eslint": "^10.8.0",
 		"globals": "^17.9.0",
 		"prettier": "^3.0.0",
+		"tsup": "^9.0.0",
 		"typescript": "^7.0.2",
 		"vitest": "^5.0.0"
 	},
@@ -112,14 +117,14 @@
 		"access": "public"
 	},
 	"files": [
-		"index.mjs",
-		"index.cjs",
+		"dist/",
+		"!dist/**/*.map",
+		"types/src/",
 		"README.md",
-		"LICENSE",
-		"types/dist/",
-		"types/index.d.mts",
-		"types/index.d.mts.map",
-		"dist/"
+		"LICENSE"
 	],
-	"sideEffects": false
+	"sideEffects": [
+		"./src/main.mjs",
+		"./dist/main.mjs"
+	]
 }

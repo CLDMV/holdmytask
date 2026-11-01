@@ -23,7 +23,7 @@
  * 4. Has realistic communication delays
  */
 
-import { HoldMyTask } from "../../index.mjs";
+import { HoldMyTask } from "../../src/index.mjs";
 import { EventEmitter } from "events";
 
 /**
