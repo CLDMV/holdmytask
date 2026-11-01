@@ -1,6 +1,6 @@
 {
 	"name": "@cldmv/holdmytask",
-	"version": "2.0.7",
+	"version": "2.1.0",
 	"description": "A tiny task queue that waits until your task is ready",
 	"main": "./dist/index.cjs",
 	"module": "./dist/index.mjs",
