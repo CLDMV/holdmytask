@@ -12,9 +12,16 @@
  *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
  *
  */
+/**
+ * Example: Device Control Pattern with Coalescing
+ *
+ * This demonstrates how to handle rapid user input (volume commands)
+ * that trigger update info commands, ensuring final state consistency.
+ */
+import { HoldMyTask } from "../../src/index.mjs";
 import { EventEmitter } from "events";
 declare class DeviceController extends EventEmitter {
-	queue: any;
+	queue: HoldMyTask;
 	deviceState: {
 		volume: number;
 		lastUpdated: number;

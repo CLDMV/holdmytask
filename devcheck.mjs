@@ -47,7 +47,7 @@ const isInstalledPackage = __dirname.split(path.sep).includes("node_modules");
 // since a built checkout has BOTH src/ and dist/ and the condition is the only thing
 // that selects src/.
 if (existsSync(srcPath) && !isCI && !isInstalledPackage) {
-	// The condition selects src/ (see the `./main` export in package.json). It can be
+	// The condition selects src/ (see the "." export in package.json). It can be
 	// supplied via NODE_OPTIONS (`NODE_OPTIONS=--conditions=holdmytask-dev`) OR directly
 	// on the node CLI (`node --conditions=holdmytask-dev` / `-C holdmytask-dev`), which
 	// lands in execArgv - this is how vitest passes it to workers - so scan both. Each

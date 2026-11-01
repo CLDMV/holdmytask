@@ -1,7 +1,7 @@
 /**
  *
  *	@Project: @cldmv/holdmytask
- *	@Filename: /index.mjs
+ *	@Filename: /src/index.mjs
  *	@Date: 2025-11-08T14:04:10-08:00 (1762639450)
  *	@Author: Nate Corcoran <CLDMV>
  *	@Email: <Shinrai@users.noreply.github.com>
@@ -12,7 +12,7 @@
  *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
  *
  */
-import { HoldMyTask } from "@cldmv/holdmytask/main";
+import { HoldMyTask } from "./hold-my-task.mjs";
 /**
  * Creates a HoldMyTask instance for task queue management
  * @param {object} [options={}] - Configuration options

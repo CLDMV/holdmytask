@@ -13,6 +13,16 @@
  *
  */
 /**
+ * Proper Coalescing Test: Volume Commands with Updates
+ *
+ * Tests 5 volume increase commands, each with:
+ * - Volume command (immediate execution)
+ * - Update command (coalesced with key "volume.up")
+ *
+ * Uses proper queue timing controls instead of device simulation.
+ */
+import { HoldMyTask } from "../../src/index.mjs";
+/**
  * Simple volume system that tracks state
  */
 declare class VolumeSystem {
@@ -57,7 +67,7 @@ declare class VolumeSystem {
  */
 declare class VolumeController {
 	volumeSystem: any;
-	queue: any;
+	queue: HoldMyTask;
 	commandCounter: number;
 	constructor(volumeSystem: any, queueOptions?: {});
 	/**

@@ -1,7 +1,7 @@
 /**
  *
  *	@Project: @cldmv/holdmytask
- *	@Filename: /index.mjs
+ *	@Filename: /src/index.mjs
  *	@Date: 2025-11-08T14:04:10-08:00 (1762639450)
  *	@Author: Nate Corcoran <CLDMV>
  *	@Email: <Shinrai@users.noreply.github.com>
@@ -23,21 +23,22 @@
 // instead of a static import, so bundlers never see a Node built-in: a browser build keeps
 // working, and without process (a browser) the check is skipped. devcheck.mjs is never
 // published, so MODULE_NOT_FOUND is expected outside a checkout; any other error is a real
-// failure.
+// failure. The build keeps the specifier external, so dist/index.mjs loads the same root
+// file.
 /* v8 ignore start -- the false branch is a non-Node runtime and the catch runs in the published
    package (no devcheck.mjs) or when devcheck.mjs fails to load; the suite always runs on Node
    from a checkout where devcheck.mjs exists and loads */
 const nodeModule = typeof process === "undefined" ? undefined : process.getBuiltinModule?.("node:module");
 if (nodeModule) {
 	try {
-		nodeModule.createRequire(import.meta.url)("./devcheck.mjs");
+		nodeModule.createRequire(import.meta.url)("../devcheck.mjs");
 	} catch (error) {
 		if (error?.code !== "MODULE_NOT_FOUND") throw error;
 	}
 }
 /* v8 ignore stop */
 
-import { HoldMyTask } from "@cldmv/holdmytask/main";
+import { HoldMyTask } from "./hold-my-task.mjs";
 
 /**
  * Creates a HoldMyTask instance for task queue management

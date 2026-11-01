@@ -12,6 +12,15 @@
  *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
  *
  */
+/**
+ * Test with Proper Queue Delays
+ *
+ * This tests the scenario you described:
+ * - Volume commands with 100ms delay (after completion)
+ * - Info requests with 500ms delay (after completion)
+ * - This should allow 2 volume updates to complete before info request
+ */
+import { HoldMyTask } from "../../src/index.mjs";
 declare class SimpleDevice {
 	volume: number;
 	commandCount: number;
@@ -41,7 +50,7 @@ declare class SimpleDevice {
  */
 declare class ProperDelayController {
 	device: any;
-	queue: any;
+	queue: HoldMyTask;
 	commandCounter: number;
 	constructor(device: any);
 	volumeUp(amount?: number): Promise<{

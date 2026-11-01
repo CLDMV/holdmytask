@@ -23,7 +23,7 @@
  * Uses proper queue timing controls instead of device simulation.
  */
 
-import { HoldMyTask } from "../../index.mjs";
+import { HoldMyTask } from "../../src/index.mjs";
 
 /**
  * Simple volume system that tracks state

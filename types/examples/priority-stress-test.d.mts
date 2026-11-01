@@ -13,6 +13,15 @@
  *
  */
 /**
+ * Priority Stress Test: Real-world Volume Commands with Priority Delays
+ *
+ * Tests realistic scenarios where:
+ * - Volume commands are high priority user actions with 100ms base delay
+ * - Update commands are low priority internal actions with 500ms base delay + 500ms start delay
+ * - Simulates real user input patterns with varying delays
+ */
+import { HoldMyTask } from "../src/index.mjs";
+/**
  * Volume system with realistic timing
  */
 declare class RealisticVolumeSystem {
@@ -53,7 +62,7 @@ declare class RealisticVolumeSystem {
  */
 declare class PriorityVolumeController {
 	volumeSystem: any;
-	queue: any;
+	queue: HoldMyTask;
 	commandCounter: number;
 	constructor(volumeSystem: any, queueOptions?: {});
 	/**

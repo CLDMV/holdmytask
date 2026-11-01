@@ -12,6 +12,16 @@
  *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
  *
  */
+/**
+ * Pseudo Device System for Testing Coalescing Behavior
+ *
+ * This simulates a real device that:
+ * 1. Has its own internal state (volume level)
+ * 2. Responds to volume up/down commands
+ * 3. Responds to info requests with current state
+ * 4. Has realistic communication delays
+ */
+import { HoldMyTask } from "../../src/index.mjs";
 import { EventEmitter } from "events";
 /**
  * Simulated device that tracks its own state
@@ -54,7 +64,7 @@ declare class PseudoDevice {
  */
 declare class DeviceController extends EventEmitter {
 	device: any;
-	queue: any;
+	queue: HoldMyTask;
 	optimisticVolume: any;
 	pendingChanges: number;
 	constructor(device: any, queueOptions?: {});

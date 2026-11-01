@@ -1,7 +1,7 @@
 /**
  *
  *	@Project: @cldmv/holdmytask
- *	@Filename: /index.cjs
+ *	@Filename: /src/index.cjs
  *	@Date: 2025-11-08T14:04:10-08:00 (1762639450)
  *	@Author: Nate Corcoran <CLDMV>
  *	@Email: <Shinrai@users.noreply.github.com>
@@ -16,8 +16,14 @@
 /**
  * CommonJS entry point for holdmytask
  *
- * This file provides CommonJS (require) support for the holdmytask library.
- * It imports and re-exports the main HoldMyTask class from the ESM module.
+ * A thin, synchronous wrapper around the ESM entry: it loads ./index.mjs through Node's
+ * require(esm) and maps it to the historical CommonJS shape (the HoldMyTask class as
+ * module.exports, plus the class aliases as properties), instead of bundling a second
+ * copy of the library.
+ *
+ * It sits next to the ESM entry under the same name, so require("./index.mjs") resolves
+ * to src/index.mjs from source and to dist/index.mjs once built. tsup's onSuccess copies
+ * it verbatim into dist/ (tsup.config.mjs); it never passes through esbuild.
  *
  * @module holdmytask
  */
