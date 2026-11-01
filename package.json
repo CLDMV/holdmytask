@@ -123,5 +123,8 @@
 		"README.md",
 		"LICENSE"
 	],
-	"sideEffects": false
+	"sideEffects": [
+		"./src/main.mjs",
+		"./dist/main.mjs"
+	]
 }
