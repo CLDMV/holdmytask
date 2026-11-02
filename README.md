@@ -16,18 +16,18 @@ Use it with callbacks or promises, from ESM or CommonJS, with full TypeScript de
 
 ## ✨ What's New
 
-### Latest: v2.0.6 (October 2026)
+### Latest: v2.1.0 (November 2026)
 
-- **Development dependencies only** — `eslint` 10.12.0, `globals` 17.13.0, `@cldmv/vitest-runner` 1.5.3 and `@types/node` 26.6.4, all lockfile-only moves. The published package and its supported Node.js range (`>=18.12`) are unchanged (#64, #65, #66).
-- **Test runner now declares Node.js 22.12 or newer** — `@cldmv/vitest-runner` 1.5.3 raises its minimum from 20.19 and brings `chalk` 6; the development toolchain already needed 22.12.
-- [View full v2.0.6 Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.6.md)
+- **Built with tsup from `src/`, with `./main` deprecated** — the entries now live in `src/index.mjs` / `src/index.cjs` and tsup builds them into `dist/`; `dist/index.cjs` is a thin wrapper over the ESM bundle, not a second copy. The `holdmytask-dev` condition now sits on the package root for both `import` and `require()`, and the development-only `devcheck.mjs` is gone. `@cldmv/holdmytask/main` still works but emits a one-time `DeprecationWarning` (`CLDMV_HOLDMYTASK_MAIN`) and will be removed in the next major; import `@cldmv/holdmytask` instead (#81, #89).
+- **Node.js `>=22.22.0` is now required** — up from `>=18.12`. The queue code itself is unchanged, but older Node.js versions are no longer built, tested or supported; stay on v2.0.6 if you can't upgrade.
+- [View full v2.1.0 Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.1.0.md)
 
 ### Recent Releases
 
+- **v2.0.6** (October 2026) — Development dependency updates only (`eslint`, `globals`, `@cldmv/vitest-runner`, `@types/node`); the published package is unchanged ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.6.md))
 - **v2.0.5** (October 2026) — Task-level `postDelay` / `startDelay` honored, failing callback tasks no longer crash the process, and header tooling on fix-headers 2.2.0 ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.5.md))
 - **v2.0.4** (October 2026) — Clearer `require()` error on Node.js without `require(esm)`; `brace-expansion` security patch in development tooling ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.4.md))
 - **v2.0.3** (October 2026) — Development toolchain moves to vitest 5; bundle-size and v4 workflow updates; verbatim Apache-2.0 license text ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.3.md))
-- **v2.0.2** (September 2026) — Development dependency update (`@humanfs/node`); no other changes ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.2.md))
 
 📚 **For complete version history and detailed release notes, see the [docs/changelog/](https://github.com/CLDMV/holdmytask/tree/master/docs/changelog/) folder.**
 
@@ -54,8 +54,8 @@ Use it with callbacks or promises, from ESM or CommonJS, with full TypeScript de
 
 ### Requirements
 
-- **Node.js v18.12.0 or higher** for ESM (`import`), as declared in the package's `engines` field
-- **CommonJS `require()`** needs Node.js `^20.19.0` or `>=22.12.0`. The CommonJS entry is a thin wrapper that loads the ESM build through Node's synchronous `require(esm)`. On older Node.js versions `require("@cldmv/holdmytask")` throws an `ERR_REQUIRE_ESM` error that names the supported versions; load the package with `import()` instead.
+- **Node.js `>=22.22.0`**, as declared in the package's `engines` field
+- **CommonJS `require()`** uses the same range. The CommonJS entry is a thin wrapper that loads the ESM build through Node's synchronous `require(esm)`. On older Node.js versions `require("@cldmv/holdmytask")` throws an `ERR_REQUIRE_ESM` error that names the supported versions; load the package with `import()` instead.
 
 ### Install
 
@@ -130,7 +130,7 @@ import HoldMyTask from "@cldmv/holdmytask";
 import * as HoldMyTaskLib from "@cldmv/holdmytask";
 // Uses optimized distribution files
 
-// CommonJS (Node.js ^20.19.0 or >=22.12.0)
+// CommonJS (Node.js >=22.22.0)
 const HoldMyTask = require("@cldmv/holdmytask"); // the class itself
 const { HoldMyTask: Named } = require("@cldmv/holdmytask"); // or by name
 ```
@@ -161,17 +161,19 @@ The ESM entry also exports async factory helpers that resolve to a new instance:
 ### Development Source Access
 
 ```javascript
-import { HoldMyTask } from "@cldmv/holdmytask/main";
-// Resolves to dist files by default; resolves to src/ when Node.js runs with the holdmytask-dev condition
+import { HoldMyTask } from "@cldmv/holdmytask";
+// Resolves to the built dist/ files by default; resolves to src/ when Node.js runs with the holdmytask-dev condition
 ```
 
-To run against the unbuilt source (from a checkout of this repository), start Node.js with the `holdmytask-dev` export condition:
+To run against the unbuilt source (from a checkout of this repository), start Node.js with the `holdmytask-dev` export condition. It applies to both `import` and `require()`:
 
 ```bash
 node --conditions=holdmytask-dev your-script.mjs
 ```
 
-**Note:** In a checkout of this repository, the root import runs a best-effort development environment check (`devcheck.mjs`) that exits with setup instructions when `src/` is present but the `holdmytask-dev` condition is not set. The check is skipped when the package is installed as a dependency and in CI.
+### Deprecated `@cldmv/holdmytask/main`
+
+`@cldmv/holdmytask/main` still works, but it is deprecated and will be removed in the next major version. It is now an alias of the package root: it exports the same objects as `@cldmv/holdmytask` (its `HoldMyTask` is the same class) and emits a one-time `DeprecationWarning` with the code `CLDMV_HOLDMYTASK_MAIN`. Import `@cldmv/holdmytask` instead.
 
 ---
 

@@ -20,7 +20,7 @@
  * that trigger update info commands, ensuring final state consistency.
  */
 
-import { HoldMyTask } from "../../index.mjs";
+import { HoldMyTask } from "../../src/index.mjs";
 import { EventEmitter } from "events";
 
 class DeviceController extends EventEmitter {

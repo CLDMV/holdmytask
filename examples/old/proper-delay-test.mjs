@@ -22,7 +22,7 @@
  * - This should allow 2 volume updates to complete before info request
  */
 
-import { HoldMyTask } from "../../index.mjs";
+import { HoldMyTask } from "../../src/index.mjs";
 
 class SimpleDevice {
 	constructor(initialVolume = 50) {

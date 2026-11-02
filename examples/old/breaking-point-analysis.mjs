@@ -20,7 +20,7 @@
  * when the coalescing race condition becomes a problem.
  */
 
-import { HoldMyTask } from "../../index.mjs";
+import { HoldMyTask } from "../../src/index.mjs";
 
 /**
  * Device with configurable delays
