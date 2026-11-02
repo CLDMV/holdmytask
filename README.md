@@ -54,8 +54,9 @@ Use it with callbacks or promises, from ESM or CommonJS, with full TypeScript de
 
 ### Requirements
 
-- **Node.js `>=22.22.0`**, as declared in the package's `engines` field
-- **CommonJS `require()`** uses the same range. The CommonJS entry is a thin wrapper that loads the ESM build through Node's synchronous `require(esm)`. On older Node.js versions `require("@cldmv/holdmytask")` throws an `ERR_REQUIRE_ESM` error that names the supported versions; load the package with `import()` instead.
+- **Node.js `>=18.12.0`** for `import`, as declared in the package's `engines` field
+- **CommonJS `require()`** needs Node.js `^20.19.0 || >=22.13.0`. The CommonJS entry is a thin wrapper that loads the ESM build through Node's synchronous `require(esm)`. On older Node.js versions `require("@cldmv/holdmytask")` throws an `ERR_REQUIRE_ESM` error that names the supported versions; load the package with `import()` instead.
+- **Development**: developing this package needs Node.js 22.22.0 or later (`devEngines`).
 
 ### Install
 
@@ -130,7 +131,7 @@ import HoldMyTask from "@cldmv/holdmytask";
 import * as HoldMyTaskLib from "@cldmv/holdmytask";
 // Uses optimized distribution files
 
-// CommonJS (Node.js >=22.22.0)
+// CommonJS (Node.js ^20.19.0 || >=22.13.0)
 const HoldMyTask = require("@cldmv/holdmytask"); // the class itself
 const { HoldMyTask: Named } = require("@cldmv/holdmytask"); // or by name
 ```
