@@ -139,7 +139,7 @@ on:
         description: "Command to run type checking"
         type: string
         required: false
-        default: "npm run test:types"
+        default: "npm run types:check"
       skip_type_check:
         description: "Skip the type-check step in the coverage-badge job"
         type: boolean
@@ -272,9 +272,9 @@ jobs:
 
       # ── Type check (runs inside the coverage-badge job) ────────────────────
       # holdmytask ships hand-authored .d.mts type declarations and validates
-      # them against a strict tsconfig via `test:types` — real type-check, not
+      # them against a strict tsconfig via `types:check` — real type-check, not
       # skipped.
-      type_check_command: ${{ github.event.inputs.type_check_command || 'npm run test:types' }}
+      type_check_command: ${{ github.event.inputs.type_check_command || 'npm run types:check' }}
       skip_type_check: ${{ github.event.inputs.skip_type_check == 'true' }}
 
       # ── PR coverage badge ─────────────────────────────────────────────────
