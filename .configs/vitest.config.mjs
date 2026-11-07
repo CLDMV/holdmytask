@@ -13,7 +13,8 @@
  *
  */
 
-import { defineConfig } from "vitest/config";
+import { defineConfig, mergeConfig } from "vitest/config";
+import { devCondition } from "@cldmv/configs/vitest.config.mjs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -21,53 +22,33 @@ import path from "node:path";
 // matter what cwd vitest is invoked from.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-export default defineConfig({
-	root,
-	// The package-scoped dev condition that routes `@cldmv/holdmytask` to `src/` (see the
-	// "." export in package.json). Tests exercise and cover the SOURCE tree, so the
-	// resolver must add `holdmytask-dev`. This *replaces* vite's default conditions, so
-	// the usual ones are kept alongside it. `test.nodeOptions` below carries the same
-	// condition into forked test workers, so Node's own resolver sees it too, and a bare local `npm test` resolves to src the same way CI does. Mirrors
-	// @cldmv/uuid.
-	resolve: {
-		conditions: ["holdmytask-dev", "module", "browser", "development|production"]
-	},
-	ssr: {
-		// Vitest often routes node-environment resolution through the SSR pipeline. Keep
-		// `module` here alongside the non-SSR resolver so a dependency's `module`-keyed
-		// export resolves the same under Vitest's SSR pipeline as in a normal build.
-		resolve: {
-			conditions: ["holdmytask-dev", "module", "node", "development|production"]
+export default mergeConfig(
+	devCondition({ root }),
+	defineConfig({
+		root,
+		test: {
+			// Fleet-wide vitest test-file convention: `*.test.vitest.mjs`.
+			include: ["tests/**/*.test.vitest.mjs"],
+			exclude: ["node_modules"],
+			environment: "node",
+			globals: true,
+			testTimeout: 30000,
+			// "dot" keeps CI logs to one character per test file instead of a full
+			// "RUN vX.Y.Z" + per-file pass/fail block for every file — vitest's
+			// non-interactive fallback (no TTY to redraw) otherwise reprints that
+			// whole block per file on top of the final aggregate summary, which
+			// dominates the log. The final "Test Files X passed" / "Tests Y passed"
+			// summary is unaffected — every built-in reporter prints it regardless
+			// of per-test verbosity.
+			reporters: ["dot"],
+			coverage: {
+				provider: "v8",
+				// src/index.cjs is loaded by Node's own require(), outside Vitest's module graph,
+				// so it is covered by tests/cjs/entry.test.cjs (node --test) instead.
+				include: ["src/**/*.mjs"],
+				exclude: ["**/*.json", "tests/**"],
+				reporter: ["text", "html", "json-summary", "json"]
+			}
 		}
-	},
-	test: {
-		// Fleet-wide vitest test-file convention: `*.test.vitest.mjs`.
-		include: ["tests/**/*.test.vitest.mjs"],
-		exclude: ["node_modules"],
-		environment: "node",
-		globals: true,
-		testTimeout: 30000,
-		// Carry the dev condition into forked workers: Node's own resolver reads it from
-		// execArgv. NODE_ENV is left
-		// alone: it does not select the conditional export (that's `--conditions`), and
-		// forcing a non-standard `NODE_ENV=holdmytask-dev` could confuse deps that key
-		// off the usual test/development/production values.
-		nodeOptions: ["--conditions=holdmytask-dev"],
-		// "dot" keeps CI logs to one character per test file instead of a full
-		// "RUN vX.Y.Z" + per-file pass/fail block for every file — vitest's
-		// non-interactive fallback (no TTY to redraw) otherwise reprints that
-		// whole block per file on top of the final aggregate summary, which
-		// dominates the log. The final "Test Files X passed" / "Tests Y passed"
-		// summary is unaffected — every built-in reporter prints it regardless
-		// of per-test verbosity.
-		reporters: ["dot"],
-		coverage: {
-			provider: "v8",
-			// src/index.cjs is loaded by Node's own require(), outside Vitest's module graph,
-			// so it is covered by tests/cjs/entry.test.cjs (node --test) instead.
-			include: ["src/**/*.mjs"],
-			exclude: ["**/*.json", "tests/**"],
-			reporter: ["text", "html", "json-summary", "json"]
-		}
-	}
-});
+	})
+);

@@ -1,6 +1,6 @@
 {
 	"name": "@cldmv/holdmytask",
-	"version": "2.1.1",
+	"version": "2.1.2",
 	"description": "A tiny task queue that waits until your task is ready",
 	"main": "./dist/index.cjs",
 	"module": "./dist/index.mjs",
@@ -39,7 +39,7 @@
 		"test": "node tests/run-vitest.mjs && npm run test:cjs",
 		"test:cjs": "npm run build && node --conditions=holdmytask-dev --test tests/cjs/entry.test.cjs",
 		"test:watch": "vitest --config .configs/vitest.config.mjs",
-		"test:types": "tsc --noEmit --project .configs/tsconfig.dts.jsonc",
+		"types:check": "tsc --noEmit --project .configs/tsconfig.dts.jsonc",
 		"coverage": "node tests/run-vitest.mjs --coverage-quiet && npm run test:cjs",
 		"ci:coverage": "npm run coverage",
 		"lint": "eslint --config .configs/eslint.config.mjs .",
@@ -47,10 +47,10 @@
 		"format": "prettier --config .configs/.prettierrc --write .",
 		"format:check": "prettier --config .configs/.prettierrc --check .",
 		"build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsup",
-		"build:types": "tsc --project .configs/tsconfig.dts.jsonc",
-		"build:ci": "npm run lint && npm run format:check && npm run build:types && npm run test:types && npm run build",
+		"types:build": "tsc --project .configs/tsconfig.dts.jsonc",
+		"build:ci": "npm run lint && npm run format:check && npm run types:build && npm run types:check && npm run build",
 		"prepack": "npm run build",
-		"precommit": "npm run build:types && npm run test:types && npm run lint && npm run test",
+		"precommit": "npm run types:build && npm run types:check && npm run lint && npm run test",
 		"fix:headers": "fix-headers --config .configs/fix-headers.json"
 	},
 	"keywords": [
@@ -97,7 +97,7 @@
 		"minimatch": "^11.0.3"
 	},
 	"devDependencies": {
-		"@cldmv/configs": "^1.3.0",
+		"@cldmv/configs": "^1.4.0",
 		"@cldmv/fix-headers": "^2.2.4",
 		"@cldmv/vitest-runner": "^1.5.6",
 		"@eslint/css": "^2.0.1",

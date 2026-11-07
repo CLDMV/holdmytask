@@ -16,17 +16,17 @@ Use it with callbacks or promises, from ESM or CommonJS, with full TypeScript de
 
 ## ✨ What's New
 
-### Latest: v2.1.1 (November 2026)
+### Latest: v2.1.2 (November 2026)
 
-- **`engines.node` is the runtime floor again** — `engines.node` is back to `>=18.12.0`, the version the package actually needs for `import`, instead of v2.1.0's `>=22.22.0`, so installs on older Node.js no longer get an engine warning. The 22.22.0 development toolchain floor moves to `devEngines`, which only applies to work on this repository. `require()` needs Node.js `^20.19.0 || >=22.13.0`, and its error message now says so ([#94](https://github.com/CLDMV/holdmytask/pull/94)).
-- [View full v2.1.1 Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.1.1.md)
+- **Tooling release, no library changes** — the vitest config now uses `devCondition()` from `@cldmv/configs`, so tests really run against `src/` through the `holdmytask-dev` export condition, and the type scripts are renamed to the fleet names `types:check` and `types:build` ([#99](https://github.com/CLDMV/holdmytask/pull/99), [#101](https://github.com/CLDMV/holdmytask/pull/101)).
+- [View full v2.1.2 Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.1.2.md)
 
 ### Recent Releases
 
+- **v2.1.1** (November 2026) — `engines.node` is the runtime floor again (`>=18.12.0`); the 22.22.0 toolchain floor moves to `devEngines` ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.1.1.md))
 - **v2.1.0** (November 2026) — Built with tsup from `src/` into `dist/`, `@cldmv/holdmytask/main` becomes a deprecated alias of the root, and `engines.node` went to `>=22.22.0` ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.1.0.md))
 - **v2.0.6** (October 2026) — Development dependency updates only (`eslint`, `globals`, `@cldmv/vitest-runner`, `@types/node`); the published package is unchanged ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.6.md))
 - **v2.0.5** (October 2026) — Task-level `postDelay` / `startDelay` honored, failing callback tasks no longer crash the process, and header tooling on fix-headers 2.2.0 ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.5.md))
-- **v2.0.4** (October 2026) — Clearer `require()` error on Node.js without `require(esm)`; `brace-expansion` security patch in development tooling ([Changelog](https://github.com/CLDMV/holdmytask/blob/master/docs/changelog/v2/v2.0.4.md))
 
 📚 **For complete version history and detailed release notes, see the [docs/changelog/](https://github.com/CLDMV/holdmytask/tree/master/docs/changelog/) folder.**
 
