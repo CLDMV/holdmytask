@@ -7,14 +7,14 @@
  *	@Email: <Shinrai@users.noreply.github.com>
  *	-----
  *	@Last modified by: Nate Corcoran <CLDMV> (Shinrai@users.noreply.github.com)
- *	@Last modified time: 2026-10-03T17:25:44-07:00 (1791073544)
+ *	@Last modified time: 2026-11-07T21:19:57-08:00 (1794115197)
  *	-----
  *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
  *
  */
 
 import { test, expect, describe } from "vitest";
-import { HoldMyTask } from "../src/hold-my-task.mjs";
+import { HoldMyTask } from "@cldmv/holdmytask";
 
 // #54: priority keys that aren't integers used to be dropped (or truncated) silently.
 const collectWarnings = async (options) => {

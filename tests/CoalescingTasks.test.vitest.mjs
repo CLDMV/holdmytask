@@ -7,13 +7,13 @@
  *	@Email: <Shinrai@users.noreply.github.com>
  *	-----
  *	@Last modified by: Nate Corcoran <CLDMV> (Shinrai@users.noreply.github.com)
- *	@Last modified time: 2026-10-02T12:20:31-07:00 (1790968831)
+ *	@Last modified time: 2026-11-07T21:19:56-08:00 (1794115196)
  *	-----
  *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
  *
  */
 
-import { HoldMyTask } from "../src/hold-my-task.mjs";
+import { HoldMyTask } from "@cldmv/holdmytask";
 import { describe, expect, test } from "vitest";
 
 // Helper function to create a delay

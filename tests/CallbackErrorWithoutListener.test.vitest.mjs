@@ -7,14 +7,14 @@
  *	@Email: <Shinrai@users.noreply.github.com>
  *	-----
  *	@Last modified by: Nate Corcoran <CLDMV> (Shinrai@users.noreply.github.com)
- *	@Last modified time: 2026-10-03T17:23:55-07:00 (1791073435)
+ *	@Last modified time: 2026-11-07T21:19:56-08:00 (1794115196)
  *	-----
  *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
  *
  */
 
 import { test, expect, describe } from "vitest";
-import { HoldMyTask } from "../src/hold-my-task.mjs";
+import { HoldMyTask } from "@cldmv/holdmytask";
 
 // #53: a callback-style task failure must reach the callback even when nothing listens
 // for the queue's `error` event; the event is only emitted when a listener exists.
