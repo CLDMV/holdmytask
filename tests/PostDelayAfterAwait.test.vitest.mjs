@@ -7,14 +7,14 @@
  *	@Email: <Shinrai@users.noreply.github.com>
  *	-----
  *	@Last modified by: Nate Corcoran <CLDMV> (Shinrai@users.noreply.github.com)
- *	@Last modified time: 2026-10-03T17:26:45-07:00 (1791073605)
+ *	@Last modified time: 2026-11-07T21:19:57-08:00 (1794115197)
  *	-----
  *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
  *
  */
 
 import { test, expect, describe, vi, beforeEach, afterEach } from "vitest";
-import { HoldMyTask } from "../src/hold-my-task.mjs";
+import { HoldMyTask } from "@cldmv/holdmytask";
 
 // Regression coverage for #52: a task enqueued immediately after awaiting the previous
 // task (same priority) must still wait out the priority postDelay.
