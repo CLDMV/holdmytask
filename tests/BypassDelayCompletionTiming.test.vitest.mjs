@@ -7,14 +7,14 @@
  *	@Email: <Shinrai@users.noreply.github.com>
  *	-----
  *	@Last modified by: Nate Corcoran <CLDMV> (Shinrai@users.noreply.github.com)
- *	@Last modified time: 2026-10-02T12:20:30-07:00 (1790968830)
+ *	@Last modified time: 2026-11-07T21:19:55-08:00 (1794115195)
  *	-----
  *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
  *
  */
 
 import { test, expect, describe, vi } from "vitest";
-import { HoldMyTask } from "../src/hold-my-task.mjs";
+import { HoldMyTask } from "@cldmv/holdmytask";
 
 // Isolated from HoldMyTask.test.vitest.mjs: this test hangs until the 30s Vitest
 // timeout on the `lts/*` CI matrix job specifically (never on the explicit 20/22/24

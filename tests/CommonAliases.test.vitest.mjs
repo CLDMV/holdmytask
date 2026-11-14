@@ -7,14 +7,14 @@
  *	@Email: <Shinrai@users.noreply.github.com>
  *	-----
  *	@Last modified by: Nate Corcoran <CLDMV> (Shinrai@users.noreply.github.com)
- *	@Last modified time: 2026-10-02T12:20:31-07:00 (1790968831)
+ *	@Last modified time: 2026-11-07T21:19:56-08:00 (1794115196)
  *	-----
  *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
  *
  */
 
 import { test, expect, describe } from "vitest";
-import { HoldMyTask, Queue, TaskManager, TaskQueue, QueueManager, TaskProcessor } from "../src/index.mjs";
+import { HoldMyTask, Queue, TaskManager, TaskQueue, QueueManager, TaskProcessor } from "@cldmv/holdmytask";
 
 describe("Common Queue System Aliases", () => {
 	test("should export HoldMyTask as the main class", () => {
@@ -534,56 +534,56 @@ describe("Enqueue Method Aliases", () => {
 
 describe("Import Aliases", () => {
 	test("queue alias should work", async () => {
-		const { queue } = await import("../src/index.mjs");
+		const { queue } = await import("@cldmv/holdmytask");
 		const instance = new queue();
 		expect(instance).toBeInstanceOf(HoldMyTask);
 		instance.destroy();
 	});
 
 	test("Queue alias should work", async () => {
-		const { Queue } = await import("../src/index.mjs");
+		const { Queue } = await import("@cldmv/holdmytask");
 		const instance = new Queue();
 		expect(instance).toBeInstanceOf(HoldMyTask);
 		instance.destroy();
 	});
 
 	test("TaskManager alias should work", async () => {
-		const { TaskManager } = await import("../src/index.mjs");
+		const { TaskManager } = await import("@cldmv/holdmytask");
 		const instance = new TaskManager();
 		expect(instance).toBeInstanceOf(HoldMyTask);
 		instance.destroy();
 	});
 
 	test("TaskQueue alias should work", async () => {
-		const { TaskQueue } = await import("../src/index.mjs");
+		const { TaskQueue } = await import("@cldmv/holdmytask");
 		const instance = new TaskQueue();
 		expect(instance).toBeInstanceOf(HoldMyTask);
 		instance.destroy();
 	});
 
 	test("QueueManager alias should work", async () => {
-		const { QueueManager } = await import("../src/index.mjs");
+		const { QueueManager } = await import("@cldmv/holdmytask");
 		const instance = new QueueManager();
 		expect(instance).toBeInstanceOf(HoldMyTask);
 		instance.destroy();
 	});
 
 	test("TaskProcessor alias should work", async () => {
-		const { TaskProcessor } = await import("../src/index.mjs");
+		const { TaskProcessor } = await import("@cldmv/holdmytask");
 		const instance = new TaskProcessor();
 		expect(instance).toBeInstanceOf(HoldMyTask);
 		instance.destroy();
 	});
 
 	test("default export should work", async () => {
-		const DefaultExport = (await import("../src/index.mjs")).default;
+		const DefaultExport = (await import("@cldmv/holdmytask")).default;
 		const instance = new DefaultExport();
 		expect(instance).toBeInstanceOf(HoldMyTask);
 		instance.destroy();
 	});
 
 	test("star import should work", async () => {
-		const AllExports = await import("../src/index.mjs");
+		const AllExports = await import("@cldmv/holdmytask");
 		const instance = new AllExports.HoldMyTask();
 		expect(instance).toBeInstanceOf(HoldMyTask);
 
@@ -604,7 +604,7 @@ describe("Async factory helpers", () => {
 	test.each(["createHoldMyTask", "createQueue", "createTaskManager", "createTaskProcessor"])(
 		"%s() resolves to a new HoldMyTask built with the given options",
 		async (name) => {
-			const factory = (await import("../src/index.mjs"))[name];
+			const factory = (await import("@cldmv/holdmytask"))[name];
 			const configured = await factory({ concurrency: 3, autoStart: false });
 			const defaults = await factory();
 			try {

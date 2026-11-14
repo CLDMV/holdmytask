@@ -1938,8 +1938,11 @@ setInterval(() => {
 ## 🧪 Testing & Development
 
 ```bash
-# Run tests (vitest suite + CommonJS entry tests)
+# Run tests (vitest suite on src/, CommonJS entry tests, and the suite again on the build)
 npm test
+
+# Build, then run the vitest suite against dist/
+npm run test:dist
 
 # Run tests with coverage
 npm run coverage
