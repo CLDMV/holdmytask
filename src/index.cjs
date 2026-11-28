@@ -14,24 +14,17 @@
  */
 
 /**
- * CommonJS entry point for holdmytask
+ * @fileoverview CommonJS entry point: the generic CLDMV drop-in shim
+ * (CLDMV/.github docs/conventions/package-layout.md).
  *
- * A thin, synchronous wrapper around the ESM entry: it loads ./index.mjs through Node's
- * require(esm) and maps it to the historical CommonJS shape (the HoldMyTask class as
- * module.exports, plus the class aliases as properties), instead of bundling a second
- * copy of the library.
- *
- * It sits next to the ESM entry under the same name, so require("./index.mjs") resolves
- * to src/index.mjs from source and to dist/index.mjs once built. tsup's onSuccess copies
- * it verbatim into dist/ (tsup.config.mjs); it never passes through esbuild.
- *
- * @module holdmytask
+ * It returns what `import` gives. holdmytask exports several distinct values (the HoldMyTask
+ * class and the create* factories), so `require("@cldmv/holdmytask")` is the module object
+ * ({ default, HoldMyTask, createQueue, ... }), not the class. tsup's onSuccess copies this
+ * file verbatim into dist/, where `./index.mjs` resolves to the built entry.
+ * @module holdmytask/cjs-entry
  */
 "use strict";
 
-// index.cjs is a thin wrapper: it loads index.mjs through Node's synchronous require(esm).
-// Node.js versions without require(esm) would fail with a bare ERR_REQUIRE_ESM, so fail
-// early with a message that says what to do instead.
 if (!process.features?.require_module) {
 	const error = new Error(
 		`@cldmv/holdmytask: require() needs Node.js ^20.19.0 or >=22.13.0 (this is ${process.version}). On older Node.js, load the package with import() instead.`
@@ -40,16 +33,12 @@ if (!process.features?.require_module) {
 	throw error;
 }
 
-const { HoldMyTask } = require("./index.mjs");
-
-// Export main class
-module.exports = HoldMyTask; // Default export
-module.exports.HoldMyTask = HoldMyTask;
-
-// Common queue system aliases
-module.exports.queue = HoldMyTask;
-module.exports.Queue = HoldMyTask;
-module.exports.TaskManager = HoldMyTask;
-module.exports.TaskQueue = HoldMyTask;
-module.exports.QueueManager = HoldMyTask;
-module.exports.TaskProcessor = HoldMyTask;
+// Same exports as `import`. One distinct exported value (aliases of it count once) comes back as that value,
+// so require(x)(...) works; anything else comes back as the module object ({ default, ...named }).
+const esm = require("./index.mjs");
+const values = new Set(
+	Object.keys(esm)
+		.filter((key) => key !== "__esModule")
+		.map((key) => esm[key])
+);
+module.exports = values.size === 1 ? values.values().next().value : esm;
