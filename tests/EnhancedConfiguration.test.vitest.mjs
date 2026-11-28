@@ -7,14 +7,14 @@
  *	@Email: <Shinrai@users.noreply.github.com>
  *	-----
  *	@Last modified by: Nate Corcoran <CLDMV> (Shinrai@users.noreply.github.com)
- *	@Last modified time: 2026-10-02T12:20:32-07:00 (1790968832)
+ *	@Last modified time: 2026-11-07T21:19:56-08:00 (1794115196)
  *	-----
  *	@Copyright: Copyright (c) 2013-2026 Catalyzed Motivation Inc. All rights reserved.
  *
  */
 
 import { test, expect, describe, vi } from "vitest";
-import { HoldMyTask } from "../src/hold-my-task.mjs";
+import { HoldMyTask } from "@cldmv/holdmytask";
 
 describe("Enhanced Configuration System", () => {
 	describe("Priority Configuration", () => {

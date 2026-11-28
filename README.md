@@ -131,8 +131,8 @@ import * as HoldMyTaskLib from "@cldmv/holdmytask";
 // Uses optimized distribution files
 
 // CommonJS (Node.js ^20.19.0 || >=22.13.0)
-const HoldMyTask = require("@cldmv/holdmytask"); // the class itself
-const { HoldMyTask: Named } = require("@cldmv/holdmytask"); // or by name
+const { HoldMyTask } = require("@cldmv/holdmytask"); // require() returns the module object, same names as import
+const holdmytask = require("@cldmv/holdmytask"); // holdmytask.HoldMyTask, holdmytask.createQueue(), holdmytask.default
 ```
 
 ### Common Queue System Aliases
@@ -1938,8 +1938,11 @@ setInterval(() => {
 ## 🧪 Testing & Development
 
 ```bash
-# Run tests (vitest suite + CommonJS entry tests)
+# Run tests (vitest suite on src/, CommonJS entry tests, and the suite again on the build)
 npm test
+
+# Build, then run the vitest suite against dist/
+npm run test:dist
 
 # Run tests with coverage
 npm run coverage
