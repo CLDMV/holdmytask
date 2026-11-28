@@ -29,7 +29,6 @@ const path = require("node:path");
 
 const repoRoot = path.resolve(__dirname, "../..");
 
-const CJS_KEYS = ["HoldMyTask", "Queue", "QueueManager", "TaskManager", "TaskProcessor", "TaskQueue", "queue"];
 const ESM_KEYS = [
 	"HoldMyTask",
 	"Queue",
@@ -44,27 +43,35 @@ const ESM_KEYS = [
 	"default",
 	"queue"
 ];
+const FACTORIES = ["createHoldMyTask", "createQueue", "createTaskManager", "createTaskProcessor"];
 
 /**
- * Checks that a CJS entry keeps the historical shape: the class itself as module.exports,
- * with the class aliases as properties, all the same object as the ESM entry's default.
- * @param {Function} required - What require() returned.
+ * Checks the generic shim's shape: the module object (not the class), with the same
+ * values as the ESM entry under every name, plus __esModule.
+ * @param {object} required - What require() returned.
  * @param {object} esm - The ESM namespace of the sibling index.mjs.
  */
 function assertSameShape(required, esm) {
-	assert.equal(typeof required, "function");
-	assert.deepEqual(Object.keys(required).sort(), CJS_KEYS);
+	assert.equal(typeof required, "object");
 	assert.deepEqual(Object.keys(esm).sort(), ESM_KEYS);
-	assert.equal(required, esm.default);
-	for (const key of CJS_KEYS) assert.equal(required[key], esm[key], key);
+	assert.deepEqual(
+		Object.keys(required)
+			.filter((key) => key !== "__esModule")
+			.sort(),
+		ESM_KEYS
+	);
+	assert.equal(required.default, required.HoldMyTask);
+	for (const key of FACTORIES) assert.equal(typeof required[key], "function", key);
+	for (const key of ESM_KEYS) assert.equal(required[key], esm[key], key);
 }
 
-test("dist: require() returns the same HoldMyTask object as import", async () => {
-	const HoldMyTask = require("../../dist/index.cjs");
+test("dist: require() returns the module object with the same values as import", async () => {
+	const required = require("../../dist/index.cjs");
 	const esm = await import("../../dist/index.mjs");
-	assertSameShape(HoldMyTask, esm);
+	assertSameShape(required, esm);
 
 	// Cheap smoke call - no timers running (autoStart: false), destroy immediately.
+	const { HoldMyTask } = required;
 	const instance = new HoldMyTask({ autoStart: false });
 	assert.ok(instance instanceof HoldMyTask);
 	assert.equal(HoldMyTask.name, "HoldMyTask");
